@@ -11,8 +11,7 @@ def cart2sphere(x,y,z):
     phi = np.arctan2(y,x)                    
     return r, theta, phi
 
-
-def process_arrival(distance, obj, time1, cme_v, cme_id, t0, i, cme_lon, cme_lat, data, label):
+def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label):
         arr_time = []
         arrival = []
         arr_time_fin = []
@@ -39,11 +38,11 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, i, cme_lon, cme_lat
             err_arr_time = (arr_time[1] - arr_time[2]).total_seconds() / 3600.0
             arrival.append([
                 cme_id[0].decode("utf-8"),
-                t0[i].strftime('%Y-%m-%dT%H:%MZ'),
+                t0.strftime('%Y-%m-%dT%H:%MZ'),
                 "{:.1f}".format(cme_lon[0]),
                 "{:.1f}".format(cme_lat[0]),
-                "{:.1f}".format(data.halfAngle[i]),
-                "{:.1f}".format(data.speed[i]),
+                "{:.1f}".format(halfAngle),
+                "{:.1f}".format(speed),
                 arr_time[0].strftime('%Y-%m-%dT%H:%MZ'),
                 "{:.2f}".format(err_arr_time / 2),
                 "{:.2f}".format(arr_speed),
@@ -153,19 +152,19 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     
     gamma = np.abs(np.random.normal(gamma_init,0.025,n_ensemble))
     ambient_wind = np.random.normal(ambient_wind_init,50,n_ensemble)
-    speed = np.random.normal(speed,50,n_ensemble)
+    speed_ensemble = np.random.normal(speed,50,n_ensemble)
     
     timesteps = np.arange(kindays_in_min)*res_in_min*60
     timesteps = np.vstack([timesteps]*n_ensemble)
     timesteps = np.transpose(timesteps)
 
     accsign = np.ones(n_ensemble)
-    accsign[speed < ambient_wind] = -1.
+    accsign[speed_ensemble < ambient_wind] = -1.
 
     distance0_list = np.ones(n_ensemble)*distance0
     
-    cme_r_ensemble = (accsign / (gamma * 1e-7)) * np.log(1 + (accsign * (gamma * 1e-7) * ((speed - ambient_wind) * timesteps))) + ambient_wind * timesteps + distance0_list
-    cme_v_ensemble = (speed - ambient_wind) / (1 + (accsign * (gamma * 1e-7) * (speed - ambient_wind) * timesteps)) + ambient_wind
+    cme_r_ensemble = (accsign / (gamma * 1e-7)) * np.log(1 + (accsign * (gamma * 1e-7) * ((speed_ensemble - ambient_wind) * timesteps))) + ambient_wind * timesteps + distance0_list
+    cme_v_ensemble = (speed_ensemble - ambient_wind) / (1 + (accsign * (gamma * 1e-7) * (speed_ensemble - ambient_wind) * timesteps)) + ambient_wind
 
     cme_r_mean = cme_r_ensemble.mean(1)
     cme_r_std = cme_r_ensemble.std(1)
@@ -205,7 +204,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     time2_num=parse_time(time2).plot_date        
     time1_num=parse_time(time1).plot_date
     
-
+    results_earth = process_arrival(distance_earth, earth.r[earth_ind][0], time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label="earth")
   
     #linear interpolation to time_mat times    
     cme_r = [np.interp(time2_num, time1_num,cme_r[:,i]) for i in range(3)]
@@ -216,11 +215,8 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     cme_b = [np.interp(time2_num, time1_num,cme_b[:,i]) for i in range(3)]
     cme_c = [np.interp(time2_num, time1_num,cme_c[:,i]) for i in range(3)]
     
-    
+
     return time2_num, cme_r, cme_lat, cme_lon, cme_a, cme_b, cme_c, cme_id, cme_v
-
-
-
 
 if __name__ == '__main__':
     print("main function here")

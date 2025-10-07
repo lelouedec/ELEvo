@@ -52,31 +52,34 @@ def fun_wrapper(dict_args):
 
 
 
-def main():
+def main(path_to_donki, path_to_positions):
     liste_spc = ['l1','solo','psp','sta','bepi','mercury','venus','mars']
-    dates = [datetime(2025,5,30),datetime(2025,6,1)]
-    data = data_utils.load_donki("./",dates)
-    positions = data_utils.load_position("./",[mdates.date2num(dates[0]),mdates.date2num(dates[1])],liste_spc)
-    for d in data:
-       d["positions"]=positions
-   
-   
+    dates = [datetime(2024,5,1),datetime(2024,5,5)]
+    data = data_utils.load_donki(path_to_donki,dates)
+    positions = data_utils.load_position(path_to_positions,[mdates.date2num(dates[0]),mdates.date2num(dates[1])],liste_spc)
 
+    # for d in data:
+    #    d["positions"]=positions
+   
 
     print('Generating kinematics using ELEvo')
 
     start_time = time.time()
 
-    if len(data) >= 5:
-        used=5
-    else:
-        used=1
+    # if len(data) >= 5:
+    #     used=5
+    # else:
+    #     used=1
         
-    pool = multiprocessing.Pool(used)
-    results = pool.map(fun_wrapper, data)
-    pool.close()
-    pool.join()
+    # pool = multiprocessing.Pool(used)
+    # results = pool.map(fun_wrapper, data)
+    # pool.close()
+    # pool.join()
     
+    results = []
+    for d in data:
+        d["positions"]=positions
+        results.append(fun_wrapper(d))
     
     
 
@@ -98,19 +101,16 @@ def main():
     print('Done in: ',np.round((time.time()-start_time)), 'seconds')
 
 
- 
-
-
-
-
-
-def plot_trajectories_only():
+def plot_trajectories_only(path_to_positions):
     
-    positions = data_utils.load_position("./",[mdates.date2num(datetime(2025,11,1)),mdates.date2num(datetime(2025,11,1)+timedelta(days=365))],['l1','solo','psp','sta','bepi','mercury','venus','mars'])
+    positions = data_utils.load_position(path_to_positions,[mdates.date2num(datetime(2025,11,1)),mdates.date2num(datetime(2025,11,1)+timedelta(days=365))],['l1','solo','psp','sta','bepi','mercury','venus','mars'])
     plotting_utils.make_frame_trajectories(positions,punch=True,trajectories=True)
 
 if __name__ == '__main__':
-    main()
+    
+    path_to_donki = 'data/'
+    path_to_positions = 'data/'
+    main(path_to_donki, path_to_positions)
     # plot_trajectories_only()
 
 
