@@ -5,21 +5,17 @@ from datetime import datetime, timedelta
 import Utils
 import matplotlib.pyplot as plt 
 from sunpy.time import parse_time
-
-
-
+import matplotlib as mpl
+from scipy.stats import norm
+import seaborn as sns
 
 # animation settings 
 
-fsize=13
-fadeind = 200*24 #if s/c positions are given in hourly resolution
+# fadeind = 200*24 #if s/c positions are given in hourly resolution
 
-symsize_planet=110
-symsize_spacecraft=80
-
-#for parker spiral   
-theta=np.arange(0,np.deg2rad(180),0.01)
-cme_color='#8C99FD'
+# #for parker spiral   
+# theta=np.arange(0,np.deg2rad(180),0.01)
+# cme_color='#8C99FD'
 
 def angle_to_coord_line(angle,x0,y0,x1,y1):
     #rotate by 4 deg for HI1 FOV
@@ -77,23 +73,21 @@ def draw_punch_fov(pos, time_num, timeind,ax):
     ax.fill([lon0,lon9,lon5],[r0,r9,r5],color=lcolor,alpha=0.3)
     ax.fill([lon0,lon8,lon4],[r0,r8,r4],color=lcolor,alpha=0.3,label="PUNCH NFI Field of View")
 
-    
-
-
-
-def plot_stereo_hi_fov(pos, time_num, timeind,ax,sc,label_display=False):    
+def plot_stereo_hi_fov(ax, pos,sc,label_display=False):    
     
     #plots the STA FOV HI1 HI2
     
-    #STB never flipped the camera:    
-    if sc=='B': 
+    time_num = pos.time
+    #STB never flipped the camera:
+    sc = sc.lower()
+    if sc=='stb': 
         ang1d=-4
         ang2d=-24
         ang3d=-18
         ang4d=-88
         lcolor='blue'
     
-    if sc=='A': 
+    if sc=='sta': 
         ang1d=4
         ang2d=24
         ang3d=18
@@ -110,13 +104,13 @@ def plot_stereo_hi_fov(pos, time_num, timeind,ax,sc,label_display=False):
     #calculate endpoints
     
     #sta position
-    x0=pos.x[timeind]
-    y0=pos.y[timeind]
+    x0=pos.x
+    y0=pos.y
     z0=0
     
     #sta position 180° rotated    
-    x1=-pos.x[timeind]
-    y1=-pos.y[timeind]
+    x1=-pos.x
+    y1=-pos.y
     z1=0
     
     r2,t2,lon2=angle_to_coord_line(ang1d,x0,y0,x1,y1)
@@ -128,10 +122,6 @@ def plot_stereo_hi_fov(pos, time_num, timeind,ax,sc,label_display=False):
     #convert to polar coordinates and plot
     [r0,t0,lon0]=Utils.cart2sphere(x0,y0,z0)    
     #[r1,t1,lon1]=hd.cart2sphere(x1,y1,z1)    
-    
-    
-     
-    
 
 
     rc11,tc21,lonc11=angle_to_coord_line(0.7,x0,y0,x1,y1)
@@ -160,115 +150,205 @@ def plot_stereo_hi_fov(pos, time_num, timeind,ax,sc,label_display=False):
     # ax.plot([lon0,lon5],[r0,r5],linestyle='--',color=lcolor,alpha=0.3, lw=0.8)
 
 
-def make_frame_trajectories(positions,start_end=True,cmes=None,punch=False,trajectories=False):
-    psp = positions['psp']
-    solo = positions['solo']
-    sta = positions['sta']
-    earth = positions['l1'] #earth is l1!
-    bepi = positions['bepi']
-    mercury = positions['mercury']
-    venus = positions['venus']
-    mars = positions['mars']
-    
-    res_in_days=1/144.
-    t_start = earth["time"][0][0]
-    t_end  =  earth["time"][-1][0]
-    frame_time_num=t_start
 
 
-    
-    backcolor='#052E37' #xkcd:black' '#052E37'
-    psp_color='#052E37' #'xkcd:black' '#052E37'
-    bepi_color='#5833FE'
-    solo_color='#F29707' #'xkcd:orange' '#F29707'
-    earth_color='#75CC41'
-    sta_color='#E75C13'#
-    mercury_color='#9dabae'
-    venus_color='#8C11AA'
-    mars_color='#E75C13'
-    cme_color='#8C99FD'
-    
-    red = '#CC2C01' #'xkcd:magenta'
-    green = earth_color #'#BFCE40' #'xkcd:green'
-    blue = '#5833FE' #'xkcd:azure'
+def get_object_color(obj_name):
 
+    obj_name = obj_name.lower()
+
+    COLOR_MAP = {
+    "sun": '#F9F200FF',
+    "psp": '#052E37FF',
+    "bepi": '#5833FEFF',
+    "solo": '#F29707FF',
+    "earth": '#75CC41FF',
+    "l1": '#75CC41FF',
+    "sta": '#E75C13FF',
+    "mercury": '#9DABAEFF',
+    "venus": '#8C11AAFF',
+    "mars": '#E75C13B3',
+    "cme": '#8C99FDFF'
+    }
+
+    if obj_name in COLOR_MAP:
+        obj_color = COLOR_MAP[obj_name]
+    else:
+        raise ValueError(f"Unknown object: {obj_name}")
+
+    return obj_color
+
+def get_object_type(obj_name):
+
+    obj_name = obj_name.lower()
+
+    TYPE_MAP = {
+    "sun": 'planet',
+    "psp": 'spacecraft',
+    "bepi": 'spacecraft',
+    "solo": 'spacecraft',
+    "earth": 'planet',
+    "l1": 'planet',
+    "sta": 'spacecraft',
+    "mercury": 'planet',
+    "venus": 'planet',
+    "mars": 'planet'
+    }
+
+    if obj_name in TYPE_MAP:
+        obj_type = TYPE_MAP[obj_name]
+    else:
+        raise ValueError(f"Unknown object: {obj_name}")
+
+    return obj_type
+
+def plot_spacecraft_planets(ax, pos_data, obj_list):
+
+        symsize_planet=110
+        symsize_spacecraft=80
+
+        marker_spacecraft='s'
+        marker_planet='o'
+
+        zorder=3
+
+        for pos_ind, pos in enumerate(pos_data):
+            obj_name = obj_list[pos_ind]
+            obj_type = get_object_type(obj_name)
+
+            marker_color = get_object_color(obj_name)
+
+            if obj_type == 'planet':
+                marker_type = marker_planet
+                marker_size = symsize_planet
+                label = None
+            
+            elif obj_type == 'spacecraft':
+                marker_type = marker_spacecraft
+                marker_size = symsize_spacecraft
+                label = obj_name.upper() + ":  " + mdates.num2date(pos.time[0]).strftime('%Y-%m-%d')
+
+            ax.scatter(pos.lon, pos.r*np.cos(pos.lat), s=marker_size, c=marker_color, marker=marker_type, lw=0, zorder=zorder, label=label)
+
+def compute_cme_ellipses(cmes, num_gridpoints=200):
+
+    num_steps = len(cmes["hc_time_num1"])
+    longcirc = np.zeros((3, num_steps, num_gridpoints+1))
+    rcirc = np.zeros((3, num_steps, num_gridpoints+1))
+    alpha = np.zeros(num_steps)
+
+    for t_ind in range(num_steps):
+
+        grid_base = ((np.arange(num_gridpoints+1)-10)*np.pi/180)-(cmes["hc_lon1"][t_ind]*np.pi/180)
+        grid_rot = ((np.arange(num_gridpoints+1)-10)*np.pi/180)
+
+        for i in range(3):
+
+            xc = cmes["c1_ell"][i][t_ind]*np.cos(cmes["hc_lon1"][t_ind]*np.pi/180)+((cmes["a1_ell"][i][t_ind]*cmes["b1_ell"][i][t_ind])/np.sqrt((cmes["b1_ell"][i][t_ind]*np.cos(grid_rot))**2+(cmes["a1_ell"][i][t_ind]*np.sin(grid_rot))**2))*np.sin(grid_base)
+            yc = cmes["c1_ell"][i][t_ind]*np.sin(cmes["hc_lon1"][t_ind]*np.pi/180)+((cmes["a1_ell"][i][t_ind]*cmes["b1_ell"][i][t_ind])/np.sqrt((cmes["b1_ell"][i][t_ind]*np.cos(grid_rot))**2+(cmes["a1_ell"][i][t_ind]*np.sin(grid_rot))**2))*np.cos(grid_base)
+
+            longcirc[i][t_ind] = np.arctan2(yc, xc)
+            rcirc[i][t_ind] = np.sqrt(xc**2+yc**2)
+            alpha[t_ind] = 1 - abs(cmes["hc_lat1"][t_ind]/100)
+    
+    return longcirc, rcirc, alpha
+
+
+def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_stereo_fov=True,punch=True,trajectories=True):
+
+    gridcolor = '#052E37'
+    fontsize = 13
+
+    threshold_cme_in_frame = 60.0 # in seconds
+    time_array = positions[object_list[0]]['time']
+    time_array = np.array([item for items in time_array for item in items])
+
+    for obj in object_list:
+        if obj not in positions.keys():
+            raise ValueError(f"Object {obj} not found in positions data.")
+    
+    # compute CME ellipses if CME data is provided
+    if cmes is not None:
+        if not all(key in cmes for key in ["hc_time_num1", "hc_r1", "hc_lat1", "hc_lon1", "a1_ell", "b1_ell", "c1_ell"]):
+            raise ValueError("CME data is missing required keys.")
+
+        longcirc, rcirc, alpha = compute_cme_ellipses(cmes, num_gridpoints=200)
+        
+        cme_times = cmes["hc_time_num1"]
+        cme_color = get_object_color("cme")
 
     fig,ax=plt.subplots(1,1,figsize = (10,10),dpi=100,subplot_kw={'projection': 'polar'}) #full hd
 
     if(start_end):
         ks = [0,-1]
-        alphas = [1.0,0.6]
     else:
         ks = np.arange(0,len(positions["l1"]))
-        alphas = np.ones((len(ks)))
+
     for k in ks:
+        current_time = mdates.num2date(time_array[k])
         #plot all positions including text R lon lat for some 
 
-
-        # ax.scatter(venus[k].lon, venus[k].r*np.cos(venus[k].lat), s=symsize_planet, c=venus_color, alpha=alphas[k],lw=0,zorder=3)
-        # ax.scatter(mercury[k].lon, mercury[k].r*np.cos(mercury[k].lat), s=symsize_planet, c=mercury_color, alpha=alphas[k],lw=0,zorder=3)
-        ax.scatter(earth[k].lon, earth[k].r*np.cos(earth[k].lat), s=symsize_planet, c=earth_color, alpha=alphas[k],lw=0,zorder=3)
-        ax.scatter(sta[k].lon, sta[k].r*np.cos(sta[k].lat), s=symsize_spacecraft, c=sta_color, marker='s', alpha=alphas[k],lw=0,zorder=3,label="STEREO-A:  "+ mdates.num2date(sta[k].time[0]).strftime('%Y-%m-%d') )
-        # ax.scatter(mars[k].lon, mars[k].r*np.cos(mars[k].lat), s=symsize_planet, c='#E75C13', alpha=0.7,lw=0,zorder=3)
+        # get position at current step
+        pos_at_step_k = [positions[obj][k] for obj in object_list]
 
 
-        #plot stereoa fov hi1/2    
-        plot_stereo_hi_fov(sta,frame_time_num, k, ax,'A',(True if k == -1 else False))
+        # plot planets and spacecraft in object_list
+        plot_spacecraft_planets(ax, pos_at_step_k, object_list)
+
+        # plot stereoa fov hi1/2 and cor
+        if plot_stereo_fov and ('sta' in object_list or 'stb' in object_list):
+            stereo_sc = 'sta' if 'sta' in object_list else 'stb'
+            plot_stereo_hi_fov(ax, positions[stereo_sc][k], stereo_sc, label_display=False)
+
+        if cmes is not None:
+            #plot_cmes_old(ax,cmes,k,current_time,res_in_days)
+
+            # calculate differene between current time and cme start time
+            cme_time_diff_to_current = [np.abs((mdates.num2date(cme_times[i])- current_time).total_seconds()) for i in range(0,len(cme_times))]
+            # get indices of cmes that are in the frame
+            cmes_at_step_k_ind = np.where(np.array(cme_time_diff_to_current)<threshold_cme_in_frame)[0]
+
+            if len(cmes_at_step_k_ind) > 0:
+                for cme_ind in cmes_at_step_k_ind:
+                    ax.plot(longcirc[0][cme_ind], rcirc[0][cme_ind], color=cme_color, ls='-', lw=1.5, alpha=alpha[cme_ind])
+                    ax.fill_between(longcirc[2][cme_ind], rcirc[2][cme_ind], rcirc[1][cme_ind], color=cme_color, alpha=0.05)
+
         ax.set_theta_zero_location('E')
-
-        plt.thetagrids(range(0,360,45),(u'0\u00b0',u'45\u00b0',u'90\u00b0',u'135\u00b0',u'+/- 180\u00b0       ',u'- 135\u00b0',u'- 90\u00b0',u'- 45\u00b0'), ha='center', fmt='%d',fontsize=fsize-1,color=backcolor, alpha=0.9,zorder=4)
-        plt.rgrids((0.1,0.3,0.5,0.7,1.0),('0.10','0.3','0.5','0.7','1.0 AU'),angle=180, fontsize=fsize-3,alpha=0.5, color=backcolor)
-        plot_cmes(ax,cmes,k,frame_time_num,res_in_days)
-
-        #ax.set_ylim(0, 1.75) #with Mars
-        ax.set_ylim(0, 1.2)
-        #Sun
+        # plot the Sun in the center
         ax.scatter(0,0,s=100,c='#F9F200',alpha=1, edgecolors='black', linewidth=0.3)
-        plt.show()
+
+        # plot the longitude grid
+        plt.thetagrids(
+            range(0,360,45),
+            (u'0\u00b0',u'45\u00b0',u'90\u00b0',u'135\u00b0',u'+/- 180\u00b0       ',u'- 135\u00b0',u'- 90\u00b0',u'- 45\u00b0'),
+            ha='center',
+            fmt='%d',
+            fontsize=fontsize-1,
+            color=gridcolor,
+            alpha=0.9,
+            zorder=4)
+        
+        # plot the radial grid
+        plt.rgrids(
+            (0.1,0.3,0.5,0.7,1.0),
+            ('0.10','0.3','0.5','0.7','1.0 AU'),
+            angle=180,
+            fontsize=fontsize-3,
+            alpha=0.5,
+            color=gridcolor)
+
+        ax.set_ylim(0, 1.2)
+
+        plt.savefig('plots/trajectories_test_'+str(k)+'.png', dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
         plt.close(fig)
+
         if (not start_end):
             fig,ax=plt.subplots(1,1,figsize = (10,10),dpi=100,subplot_kw={'projection': 'polar'})    
-    
-    
-    ax.plot(sta.lon[:], sta.r[:]*np.cos(sta.lat[:]), c='#CC2C01', linestyle='--', alpha=0.6,lw=1,zorder=3)
-    ax.scatter(np.deg2rad(60.0),1.0,s=100,c='pink',alpha=1,  linewidth=0.3,marker='s',label="L4")
-    # ax.plot(mercury.lon[:], mercury.r[:]*np.cos(mercury.lat[:]), c=mercury_color, linestyle='--', alpha=0.6,lw=1,zorder=3)
-    # ax.plot(venus.lon[:], venus.r[:]*np.cos(venus.lat[:]), c=venus_color, linestyle='--', alpha=0.6,lw=1,zorder=3)
-    draw_punch_fov(earth,frame_time_num,-1,ax)
-    angle = np.deg2rad(67.5)
-    ax.legend(loc="lower left",
-            bbox_to_anchor=(.5 + np.cos(angle)/2, .5 + np.sin(angle)/2))
-
-    plt.show()
-    plt.close(fig)
 
 
+    # draw_punch_fov(earth,frame_time_num,-1,ax)
+    # angle = np.deg2rad(67.5)
+    # ax.legend(loc="lower left",
+    #         bbox_to_anchor=(.5 + np.cos(angle)/2, .5 + np.sin(angle)/2))
 
-def plot_cmes(ax,cmes,k,frame_time_num,res_in_days):
-    
-    date_frame = mdates.num2date((frame_time_num+float(k)*res_in_days))
-    diffs = [np.abs((mdates.num2date(cmes["hc_time_num1"][i])- date_frame).total_seconds()) for i in range(0,len(cmes["hc_time_num1"]))]
-    cmeind1=np.where(np.array(diffs)<60.0)[0]
-
-    
-    for p in range(0,np.size(cmeind1)):
-        
-        t = ((np.arange(201)-10)*np.pi/180)-(cmes["hc_lon1"][cmeind1[p]]*np.pi/180)
-        t1 = ((np.arange(201)-10)*np.pi/180)
-        
-        longcirc1 = []
-        rcirc1 = []
-        for i in range(3):
-
-            xc1 = cmes["c1_ell"][i][cmeind1[p]]*np.cos(cmes["hc_lon1"][cmeind1[p]]*np.pi/180)+((cmes["a1_ell"][i][cmeind1[p]]*cmes["b1_ell"][i][cmeind1[p]])/np.sqrt((cmes["b1_ell"][i][cmeind1[p]]*np.cos(t1))**2+(cmes["a1_ell"][i][cmeind1[p]]*np.sin(t1))**2))*np.sin(t)
-            yc1 = cmes["c1_ell"][i][cmeind1[p]]*np.sin(cmes["hc_lon1"][cmeind1[p]]*np.pi/180)+((cmes["a1_ell"][i][cmeind1[p]]*cmes["b1_ell"][i][cmeind1[p]])/np.sqrt((cmes["b1_ell"][i][cmeind1[p]]*np.cos(t1))**2+(cmes["a1_ell"][i][cmeind1[p]]*np.sin(t1))**2))*np.cos(t)
-
-            longcirc1.append(np.arctan2(yc1, xc1))
-            rcirc1.append(np.sqrt(xc1**2+yc1**2))
-
-        ax.plot(longcirc1[0],rcirc1[0], color=cme_color, ls='-', alpha=1-abs(cmes["hc_lat1"][cmeind1[p]]/100), lw=1.5) 
-        ax.fill_between(longcirc1[2], rcirc1[2], rcirc1[1], color=cme_color, alpha=.05)
-
-
-
-
+    # plt.savefig('plots/trajectories'++'.png', dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor())
+    # plt.close(fig)

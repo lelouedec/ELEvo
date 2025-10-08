@@ -53,10 +53,11 @@ def fun_wrapper(dict_args):
 
 
 def main(path_to_donki, path_to_positions):
-    liste_spc = ['l1','solo','psp','sta','bepi','mercury','venus','mars']
+    object_list = ['l1','solo','psp','sta','bepi','mercury','venus','mars']
+
     dates = [datetime(2024,5,1),datetime(2024,5,5)]
     data = data_utils.load_donki(path_to_donki,dates)
-    positions = data_utils.load_position(path_to_positions,[mdates.date2num(dates[0]),mdates.date2num(dates[1])],liste_spc)
+    positions = data_utils.load_position(path_to_positions,[mdates.date2num(dates[0]),mdates.date2num(dates[1])],object_list)
 
     # for d in data:
     #    d["positions"]=positions
@@ -94,9 +95,15 @@ def main(path_to_donki, path_to_positions):
     cmes["hc_id1" ]= np.concatenate(np.array(results, dtype=object)[:,7])
     cmes["hc_v1" ]= np.concatenate(np.array(results, dtype=object)[:,8],1)
 
+    cmes["hc_arr_time1"] = np.concatenate(np.array(results, dtype=object)[:,9])
+    cmes["hc_err_arr_time_min1"] = np.concatenate(np.array(results, dtype=object)[:,10])
+    cmes["hc_err_arr_time_max1"] = np.concatenate(np.array(results, dtype=object)[:,11])
+    cmes["hc_arr_id1"] = np.concatenate(np.array(results, dtype=object)[:,12])
+    cmes["hc_arr_hit1"] = np.concatenate(np.array(results, dtype=object)[:,13])
+    cmes["hc_arr_speed1"] = np.concatenate(np.array(results, dtype=object)[:,14])
+    cmes["hc_err_arr_speed1"] = np.concatenate(np.array(results, dtype=object)[:,15])
 
-    plotting_utils.make_frame_trajectories(positions,start_end=False,cmes=cmes)
-
+    plotting_utils.make_frame_trajectories(positions,object_list,start_end=False,cmes=cmes)
 
     print('Done in: ',np.round((time.time()-start_time)), 'seconds')
 

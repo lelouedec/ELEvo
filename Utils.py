@@ -91,6 +91,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     kindays_in_min = int(kindays*24*60/res_in_min)
 
     earth = positions["l1"]
+    sta = positions["sta"]
 
     
 
@@ -100,14 +101,10 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     earth_ind = np.argmin(np.abs(dct))
     
 
-
     if np.abs(np.deg2rad(longitude)) + np.abs(earth.lon[earth_ind][0]) > np.pi and np.sign(np.deg2rad(longitude)) != np.sign(earth.lon[earth_ind][0]):
         delta_earth = np.deg2rad(longitude) - (earth.lon[earth_ind][0] + 2 * np.pi * np.sign(np.deg2rad(longitude)))
     else:
         delta_earth = np.deg2rad(longitude) - earth.lon[earth_ind][0]
-   
-  
-
 
 
      #times for each event kinematic
@@ -216,7 +213,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     cme_c = [np.interp(time2_num, time1_num,cme_c[:,i]) for i in range(3)]
     
 
-    return time2_num, cme_r, cme_lat, cme_lon, cme_a, cme_b, cme_c, cme_id, cme_v
+    return time2_num, cme_r, cme_lat, cme_lon, cme_a, cme_b, cme_c, cme_id, cme_v, results_earth['arr_time_fin'], results_earth['arr_time_err0'], results_earth['arr_time_err1'], results_earth['arr_id'], results_earth['arr_hit'], results_earth['arr_speed_list'], results_earth['arr_speed_err_list']
 
 if __name__ == '__main__':
     print("main function here")

@@ -1,2 +1,6 @@
 data/*
+plots/*
 *.pyc
+elevo_forecast.py
+config_servers.py
+.DS_Store
