@@ -16,37 +16,6 @@ import data_utils
 import Utils 
 import plotting_utils
 
-
-
-# today = datetime.today()
-# date_today = datetime.now().strftime('%Y-%m-%d')
-# arr_outputdirectory=arrival_path+str(date_today)
-
-
-
-# date_today_hours = datetime.now().strftime('%Y-%m-%d_%H')
-# date_today_minutes = datetime.now().strftime('%Y-%m-%d %H:%M')
-
-# header = r'ID, time 21.5 [UT, at 21.5 R_Sun], lon [deg], lat [deg], half width [deg], initial speed [km/s], arrival time [UTC], error arrival time [h], arrival speed [km/s], error arrival speed [km/s]'
-# with open(arr_outputdirectory+'/icme_arrival_'+date_today_hours+'.txt', "a") as f:
-#     f.write('ASWO, GeoSphere Austria - created ' + str(today.strftime('%A'))[0:3] + ' ' + date_today_minutes + ' UTC \n')
-#     f.write(header + '\n')
-#     f.close
-    
-# header = r'ID, time 21.5 [UT, at 21.5 R_Sun], lon [deg], lat [deg], half width [deg], initial speed [km/s], arrival time @SolarOrbiter [UTC], error arrival time [h], arrival speed @SolarOrbiter [km/s], error arrival speed [km/s]'
-# with open(arr_outputdirectory+'/icme_arrival_solo_'+date_today_hours+'.txt', "a") as f:
-#     f.write('ASWO, GeoSphere Austria - created ' + str(today.strftime('%A'))[0:3] + ' ' + date_today_minutes + ' UTC \n')
-#     f.write(header + '\n')
-#     f.close
-    
-# header = r'ID, time 21.5 [UT, at 21.5 R_Sun], lon [deg], lat [deg], initial speed [km/s], arrival time [UT], error arrival time @STEREO-A [h], arrival speed @STEREO-A [km/s], error arrival speed [km/s]'
-# with open(arr_outputdirectory+'/icme_arrival_sta_'+date_today_hours+'.txt', "a") as f:
-#     f.write('ASWO, GeoSphere Austria - created ' + str(today.strftime('%A'))[0:3] + ' ' + date_today_minutes + ' UTC \n')
-#     f.write(header + '\n')
-#     f.close
-
-
-
 def fun_wrapper(dict_args):
     return Utils.Prediction_ELEvo(**dict_args)
 
@@ -55,55 +24,48 @@ def fun_wrapper(dict_args):
 def main(path_to_donki, path_to_positions):
     object_list = ['l1','solo','psp','sta','bepi','mercury','venus','mars']
 
-    dates = [datetime(2024,5,1),datetime(2024,5,5)]
+    dates = [datetime(2024,5,1),datetime(2025,4,30)]
     data = data_utils.load_donki(path_to_donki,dates)
     positions = data_utils.load_position(path_to_positions,[mdates.date2num(dates[0]),mdates.date2num(dates[1])],object_list)
 
-    # for d in data:
-    #    d["positions"]=positions
-   
 
     print('Generating kinematics using ELEvo')
 
     start_time = time.time()
-
-    # if len(data) >= 5:
-    #     used=5
-    # else:
-    #     used=1
-        
-    # pool = multiprocessing.Pool(used)
-    # results = pool.map(fun_wrapper, data)
-    # pool.close()
-    # pool.join()
     
     results = []
     for d in data:
         d["positions"]=positions
         results.append(fun_wrapper(d))
     
-    
 
     cmes = {}
-    cmes["hc_time_num1"]= np.concatenate(np.array(results, dtype=object)[:,0])
-    cmes["hc_r1" ]= np.concatenate(np.array(results, dtype=object)[:,1],1)
-    cmes["hc_lat1" ]= np.concatenate(np.array(results, dtype=object)[:,2])
-    cmes["hc_lon1" ]= np.concatenate(np.array(results, dtype=object)[:,3])
-    cmes["a1_ell" ]= np.concatenate(np.array(results, dtype=object)[:,4],1)
-    cmes["b1_ell" ]= np.concatenate(np.array(results, dtype=object)[:,5],1)
-    cmes["c1_ell" ]= np.concatenate(np.array(results, dtype=object)[:,6],1)
-    cmes["hc_id1" ]= np.concatenate(np.array(results, dtype=object)[:,7])
-    cmes["hc_v1" ]= np.concatenate(np.array(results, dtype=object)[:,8],1)
 
-    cmes["hc_arr_time1"] = np.concatenate(np.array(results, dtype=object)[:,9])
-    cmes["hc_err_arr_time_min1"] = np.concatenate(np.array(results, dtype=object)[:,10])
-    cmes["hc_err_arr_time_max1"] = np.concatenate(np.array(results, dtype=object)[:,11])
-    cmes["hc_arr_id1"] = np.concatenate(np.array(results, dtype=object)[:,12])
-    cmes["hc_arr_hit1"] = np.concatenate(np.array(results, dtype=object)[:,13])
-    cmes["hc_arr_speed1"] = np.concatenate(np.array(results, dtype=object)[:,14])
-    cmes["hc_err_arr_speed1"] = np.concatenate(np.array(results, dtype=object)[:,15])
+    cmes["hc_time_num1"]= np.vstack(np.array(results, dtype=object)[:,0])
 
-    plotting_utils.make_frame_trajectories(positions,object_list,start_end=False,cmes=cmes)
+    cmes["hc_r1" ]= np.array(results, dtype=object)[:,1]
+
+    cmes["hc_lat1" ]= np.vstack(np.array(results, dtype=object)[:,2])
+    cmes["hc_lon1" ]= np.vstack(np.array(results, dtype=object)[:,3])
+
+    cmes["a1_ell" ]= np.array(results, dtype=object)[:,4]
+    cmes["b1_ell" ]= np.array(results, dtype=object)[:,5]
+    cmes["c1_ell" ]= np.array(results, dtype=object)[:,6]
+
+    cmes["hc_id1" ]= np.vstack(np.array(results, dtype=object)[:,7])
+
+    cmes["hc_v1" ]= np.array(results, dtype=object)[:,8]
+
+    cmes["hc_arr_time1"] = np.vstack(np.array(results, dtype=object)[:,9])
+    cmes["hc_err_arr_time_min1"] = np.vstack(np.array(results, dtype=object)[:,10])
+    cmes["hc_err_arr_time_max1"] = np.vstack(np.array(results, dtype=object)[:,11])
+    cmes["hc_arr_id1"] = np.vstack(np.array(results, dtype=object)[:,12])
+    cmes["hc_arr_hit1"] = np.vstack(np.array(results, dtype=object)[:,13])
+    cmes["hc_arr_speed1"] = np.vstack(np.array(results, dtype=object)[:,14])
+    cmes["hc_err_arr_speed1"] = np.vstack(np.array(results, dtype=object)[:,15])
+
+    np.save('data/cmes_elevo.npy',cmes)
+    #plotting_utils.make_frame_trajectories(positions,object_list,start_end=False,cmes=cmes)
 
     print('Done in: ',np.round((time.time()-start_time)), 'seconds')
 

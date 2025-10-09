@@ -4,14 +4,112 @@ from datetime import datetime, timedelta
 import astropy.units as u
 import data_utils
 from sunpy.time import parse_time
+from numba import njit, prange
 
 def cart2sphere(x,y,z):
+    """
+    Converts Cartesian coordinates (x, y, z) to spherical coordinates (r, theta, phi).
+
+    Parameters
+    ----------
+    x : float or array-like
+        The x-coordinate(s) in Cartesian space.
+    y : float or array-like
+        The y-coordinate(s) in Cartesian space.
+    z : float or array-like
+        The z-coordinate(s) in Cartesian space.
+
+    Returns
+    -------
+    r : float or array-like
+        The radial distance from the origin.
+    theta : float or array-like
+        The polar angle (inclination) in radians, measured from the z-axis.
+    phi : float or array-like
+        The azimuthal angle in radians, measured from the x-axis in the x-y plane.
+
+    Notes
+    -----
+    - The output angles are in radians.
+    """
     r = np.sqrt(x**2+ y**2 + z**2)           
     theta = np.arctan2(z,np.sqrt(x**2+ y**2))
     phi = np.arctan2(y,x)                    
     return r, theta, phi
 
+@njit(fastmath=True, parallel=True)
+def compute_cme_ensemble(gamma, ambient_wind, speed_ensemble, timesteps, distance0):
+    """
+    Compute CME ensemble propagation (r and v) with Numba acceleration.
+
+    Parameters
+    ----------
+    gamma : 1D array (n_ensemble)
+    ambient_wind : 1D array (n_ensemble)
+    speed_ensemble : 1D array (n_ensemble)
+    timesteps : 1D array (kindays_in_min)
+    distance0 : float
+
+    Returns
+    -------
+    cme_r_ensemble : 2D array [kindays_in_min, n_ensemble]
+    cme_v_ensemble : 2D array [kindays_in_min, n_ensemble]
+    """
+
+    n_steps = timesteps.size
+    n_ens = gamma.size
+    cme_r_ensemble = np.empty((n_steps, n_ens), dtype=np.float32)
+    cme_v_ensemble = np.empty((n_steps, n_ens), dtype=np.float32)
+
+    for j in prange(n_ens):
+        g = gamma[j]
+        v_amb = ambient_wind[j]
+        v0 = speed_ensemble[j]
+        accsign = 1.0
+        if v0 < v_amb:
+            accsign = -1.0
+
+        gfac = g * 1e-7
+        for i in range(n_steps):
+            t = timesteps[i]
+            term = accsign * gfac * (v0 - v_amb) * t
+            cme_r_ensemble[i, j] = (
+                (accsign / gfac) * np.log(1.0 + term)
+                + v_amb * t
+                + distance0
+            )
+            cme_v_ensemble[i, j] = (
+                (v0 - v_amb) / (1.0 + term) + v_amb
+            )
+
+    return cme_r_ensemble, cme_v_ensemble
+
 def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label):
+        """
+        Processes the arrival time and related parameters for a CME.
+        Args:
+            distance (np.ndarray): Array of distances for each time and scenario.
+            obj (float): Target distance for arrival calculation.
+            time1 (list or np.ndarray): List of datetime objects corresponding to each distance entry.
+            cme_v (np.ndarray): Array containing CME speed and its uncertainties.
+            cme_id (np.ndarray): Array containing CME identifier(s).
+            t0 (datetime): CME launch time.
+            halfAngle (float): Half angular of the CME.
+            speed (float): Mean speed of the CME.
+            cme_lon (np.ndarray): Array containing CME longitude(s).
+            cme_lat (np.ndarray): Array containing CME latitude(s).
+            label (str): Target label (e.g., 'earth') to determine calculation method.
+        Returns:
+            dict: Dictionary containing the following keys:
+                - "arrival": List with CME arrival information and uncertainties.
+                - "arr_time_fin": List of final arrival times.
+                - "arr_time_err0": List of lower bound arrival times.
+                - "arr_time_err1": List of upper bound arrival times.
+                - "arr_id": List of CME identifiers.
+                - "arr_hit": List indicating if arrival was detected (1.0) or not (nan).
+                - "arr_speed_list": List of arrival speeds.
+                - "arr_speed_err_list": List of arrival speed uncertainties.
+        """
         arr_time = []
         arrival = []
         arr_time_fin = []
@@ -91,7 +189,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     kindays_in_min = int(kindays*24*60/res_in_min)
 
     earth = positions["l1"]
-    sta = positions["sta"]
+    #sta = positions["sta"]
 
     
 
@@ -159,9 +257,14 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     accsign[speed_ensemble < ambient_wind] = -1.
 
     distance0_list = np.ones(n_ensemble)*distance0
-    
-    cme_r_ensemble = (accsign / (gamma * 1e-7)) * np.log(1 + (accsign * (gamma * 1e-7) * ((speed_ensemble - ambient_wind) * timesteps))) + ambient_wind * timesteps + distance0_list
-    cme_v_ensemble = (speed_ensemble - ambient_wind) / (1 + (accsign * (gamma * 1e-7) * (speed_ensemble - ambient_wind) * timesteps)) + ambient_wind
+
+    cme_r_ensemble, cme_v_ensemble = compute_cme_ensemble(
+        gamma.astype(np.float32),
+        ambient_wind.astype(np.float32),
+        speed_ensemble.astype(np.float32),
+        (np.arange(kindays_in_min, dtype=np.float32) * res_in_min * 60.0),
+        np.float32(distance0)
+    )
 
     cme_r_mean = cme_r_ensemble.mean(1)
     cme_r_std = cme_r_ensemble.std(1)

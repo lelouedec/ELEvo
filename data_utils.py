@@ -50,7 +50,12 @@ def load_donki(results_path,dates):
                         CMEs[d["associatedCMEID"]][k] = d[k] + diff/2
                    
                 elif(isinstance(d[k], (int, float, complex))):
-                    CMEs[d["associatedCMEID"]][k] = np.nanmean([CMEs[d["associatedCMEID"]][k],d[k]])
+                    # TODO: this fix is temporary, need to check why there are None entries
+                    try:
+                        CMEs[d["associatedCMEID"]][k] = np.nanmean([CMEs[d["associatedCMEID"]][k],d[k]])
+                    except:
+                        CMEs[d["associatedCMEID"]][k] = d[k]
+                        
         else:
             d["time21_5"] = datetime.strptime(d["time21_5"],"%Y-%m-%dT%H:%MZ")
             CMEs[d["associatedCMEID"]] = d
