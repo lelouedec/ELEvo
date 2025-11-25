@@ -177,6 +177,7 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, c
 
 def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMostAccurate, associatedCMEID, associatedCMEstartTime, note, associatedCMELink, catalog, featureCode, dataLevel, measurementTechnique, imageType, tilt, minorHalfWidth, speedMeasuredAtHeight, submissionTime, versionId, link,positions):
     print(associatedCMEID)
+
     distance0 = 21.5*u.solRad.to(u.km)
     t0 = time21_5
     gamma_init = 0.1
@@ -197,15 +198,12 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
 
     dct = mdates.date2num(time21_5) - earth.time
     earth_ind = np.argmin(np.abs(dct))
-    
 
     if np.abs(np.deg2rad(longitude)) + np.abs(earth.lon[earth_ind][0]) > np.pi and np.sign(np.deg2rad(longitude)) != np.sign(earth.lon[earth_ind][0]):
         delta_earth = np.deg2rad(longitude) - (earth.lon[earth_ind][0] + 2 * np.pi * np.sign(np.deg2rad(longitude)))
     else:
         delta_earth = np.deg2rad(longitude) - earth.lon[earth_ind][0]
-
-
-     #times for each event kinematic
+    #times for each event kinematic
     time1=[]
     tstart1=time21_5
     tend1=tstart1+timedelta(days=kindays)
@@ -215,7 +213,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
         time1.append(tstart1)  
         tstart1 += timedelta(minutes=res_in_min)    
 
-   
+
     # #make kinematics
     timestep=np.zeros([kindays_in_min,n_ensemble])
     cme_r=np.zeros([kindays_in_min, 3])
@@ -232,7 +230,6 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
 
     cme_hit=np.zeros(kindays_in_min)
     cme_hit[np.abs(delta_earth)<halfwidth] = 1
-
 
     distance_earth = np.empty([kindays_in_min,3])
     distance_solo = np.empty([kindays_in_min,3])
@@ -292,7 +289,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
 
     #find next full hour after t0
     format_str = '%Y-%m-%d %H'  
-    t0r = datetime.strptime(datetime.strftime(t0, format_str), format_str) +timedelta(hours=1)
+    t0r = datetime.strptime(datetime.strftime(t0, format_str), format_str) + timedelta(hours=1)
     time2=[]
     tstart2=t0r
     tend2=tstart2+timedelta(days=kindays)
@@ -305,7 +302,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     time1_num=parse_time(time1).plot_date
     
     results_earth = process_arrival(distance_earth, earth.r[earth_ind][0], time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label="earth")
-  
+
     #linear interpolation to time_mat times    
     cme_r = [np.interp(time2_num, time1_num,cme_r[:,i]) for i in range(3)]
     cme_v = [np.interp(time2_num, time1_num,cme_v[:,i]) for i in range(3)]
@@ -316,7 +313,8 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     cme_c = [np.interp(time2_num, time1_num,cme_c[:,i]) for i in range(3)]
     
 
-    return time2_num, cme_r, cme_lat, cme_lon, cme_a, cme_b, cme_c, cme_id, cme_v, results_earth['arr_time_fin'], results_earth['arr_time_err0'], results_earth['arr_time_err1'], results_earth['arr_id'], results_earth['arr_hit'], results_earth['arr_speed_list'], results_earth['arr_speed_err_list']
+    return time2_num, cme_r, cme_lat, cme_lon, cme_a, cme_b, cme_c, cme_id, cme_v, halfwidth,results_earth['arr_time_fin'], results_earth['arr_time_err0'], results_earth['arr_time_err1'], results_earth['arr_id'], results_earth['arr_hit'], results_earth['arr_speed_list'], results_earth['arr_speed_err_list']
+
 
 if __name__ == '__main__':
     print("main function here")

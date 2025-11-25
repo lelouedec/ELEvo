@@ -36,7 +36,7 @@ def load_donki(results_path,dates):
 
     f = open(results_path+'DONKI.json')
     data = json.load(f)
-    CMEs = {}    
+    CMEs = {}   
     for d in data:
         if(d["associatedCMEID"] in CMEs.keys()):
             d["time21_5"] = datetime.strptime(d["time21_5"],"%Y-%m-%dT%H:%MZ")
@@ -63,6 +63,33 @@ def load_donki(results_path,dates):
 
     return list(CMEs.values())
 
+def load_strudl_tracks(path, return_parameters=False):
+    
+    times  = []
+    elongs = []
 
+    if return_parameters:
+        params = []
+
+    converted_strudl_dict = np.load(path, allow_pickle=True).item()
+
+    for cme_key in converted_strudl_dict.keys():
+        
+        times.append([pd.to_datetime(d) for d in converted_strudl_dict[cme_key]["time"]])
+        elongs.append(list(converted_strudl_dict[cme_key]["elongation"]))
+
+        if return_parameters:
+            phi = converted_strudl_dict[cme_key]["phi"]
+            halfwidth = converted_strudl_dict[cme_key]["halfwidth"]
+            L1_ist_obs = converted_strudl_dict[cme_key]["L1_ist_obs"]
+            cmeID_elevo = converted_strudl_dict[cme_key]["cmeID_elevo"]
+
+            params.append({'phi':phi, 'halfwidth':halfwidth, 'L1_ist_obs':L1_ist_obs, 'cmeID_strudl':cme_key, 'cmeID_elevo':cmeID_elevo})
+
+    if return_parameters:
+        return times,elongs,params
+    else:
+        return times,elongs
+    
 if __name__ == "__main__":
     print(len(load_donki("./")))

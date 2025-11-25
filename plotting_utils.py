@@ -143,7 +143,80 @@ def calculate_stereo_fov_lines(pos, sc):
 
     return np.array(fov_values)
 
+def calculate_elongation_lines(pos, sc, track_elongation, track_time):
+    #plots the STA FOV HI1 HI2
+    
+    #STB never flipped the camera:
+    sc = sc.lower()
+    track_elongation_calc = track_elongation[0]
+    if sc=='sta': 
 
+        #STA flipped during conjunction
+        if mdates.date2num(datetime(2015,11,1))<track_time<mdates.date2num(datetime(2023,8,12)):  
+            track_elongation_calc = -track_elongation_calc
+
+    #calculate endpoints
+    
+    #sta position
+    x0=pos.x
+    y0=pos.y
+    z0=0
+    
+    #sta position 180° rotated    
+    x1=-pos.x
+    y1=-pos.y
+    z1=0
+    
+    r_elon = np.nan
+    t_elon = np.nan
+    lon_elon = np.nan
+
+    
+    #convert to polar coordinates and plot
+    [r0,t0,lon0]=Utils.cart2sphere(x0,y0,z0)    
+    #[r1,t1,lon1]=hd.cart2sphere(x1,y1,z1)    
+
+    if not np.isnan(track_elongation_calc):
+        r_temp,t_temp,lon_temp=angle_to_coord_line(track_elongation_calc,x0,y0,x1,y1)
+        r_elon=r_temp
+        t_elon=t_temp
+        lon_elon=lon_temp
+    
+    else:
+        r0=np.nan
+        lon0=np.nan
+
+
+    fov_values = [lon0, r0, lon_elon, r_elon]
+    
+    for num_val, value in enumerate(fov_values):
+        if isinstance(value, np.ndarray):
+            if value.size != 1:
+                raise ValueError("Expected scalar values for FOV calculations.")
+            else:
+                value = value[0]  # Convert single-element array to scalar
+                fov_values[num_val] = value
+
+    return np.array(fov_values)
+
+def plot_elongation_line(ax, fov_data, sc, label_display=False):
+    if sc.lower() == 'sta':
+        lcolor = 'darkred'
+    else:
+        lcolor = 'darkblue'
+
+    if(label_display):
+        label="Elongation Line"
+    else:
+        label=""
+
+    lon0, r0, lon_elon, r_elon = fov_data
+    artists = []
+
+    line, = ax.plot([lon0, lon_elon], [r0, r_elon], linestyle='--', color=lcolor, alpha=0.5, lw=1.2, label=label)
+    artists.append(line)
+
+    return artists
 def plot_stereo_hi_fov(ax, fov_data, sc, label_display=False):    
     
     if sc.lower() == 'sta':
@@ -332,6 +405,14 @@ def update_stereo_hi_fov(artists, fov_data):
     poly1.set_xy(np.array([[lon0, r0], [lonc11, rc11], [lonc21, rc21]]))
     poly2.set_xy(np.array([[lon0, r0], [lonc12, rc12], [lonc22, rc22]]))
 
+def update_elongation_line(artists, fov_data):
+
+    line1 = artists[0]
+
+    lon0, r0, lon_elon, r_elon = fov_data
+    line1.set_data([lon0, lon_elon], [r0, r_elon])
+
+
 def update_cmes(artists, idx, ellipse_data):
 
     line, poly = artists
@@ -363,7 +444,7 @@ def update_cmes(artists, idx, ellipse_data):
         poly.set_xy(verts)
         poly.set_alpha(0.05)
 
-def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_stereo_fov=True,punch=True,trajectories=True):
+def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_stereo_fov=True,punch=True,trajectories=True, cme_tracks=None):
 
     gridcolor = '#052E37'
     fontsize = 13
@@ -481,6 +562,33 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
         fov_lines_at_step_k = calculate_stereo_fov_lines(positions[stereo_sc][0], stereo_sc)
         fov_artists = plot_stereo_hi_fov(ax, fov_lines_at_step_k, stereo_sc, label_display=False)
 
+    # TODO: implement CME tracks plotting
+    # if cme_tracks is not None and ('sta' in object_list or 'stb' in object_list):
+    #     stereo_sc = 'sta' if 'sta' in object_list else 'stb'
+    #     elongation_lines_at_step_k = []
+    #     elongation_artists = []
+    #     track_times, track_elongations = cme_tracks
+    #     for cme_number in range(len(track_times)):
+    #         elongation_lines_at_step_k = calculate_elongation_lines(positions[stereo_sc], stereo_sc, track_elongations[cme_number], track_times[cme_number])
+    #         elongation_artists = plot_elongation_line(ax, elongation_lines_at_step_k, stereo_sc, label_display=True)
+
+    if cme_tracks is not None and ('sta' in object_list or 'stb' in object_list):
+        stereo_sc = 'sta' if 'sta' in object_list else 'stb'
+        elongation_lines_at_step_k = []
+        elongation_artists = []
+        track_times = cme_tracks['time']
+        track_elongations = cme_tracks['elongation']
+
+        time_num = [positions[stereo_sc][i].time for i in range(len(positions[stereo_sc]))]
+
+        # interpolate tracks to time_num grid
+        track_time_mdates = mdates.date2num(track_times)
+
+        track_elongation_interp = np.interp(time_num, track_time_mdates, track_elongations, left=np.nan, right=np.nan)
+
+        elongation_lines_at_step_k = calculate_elongation_lines(positions[stereo_sc][0], stereo_sc, track_elongation_interp[0], track_time_mdates[0])
+        elongation_artists = plot_elongation_line(ax, elongation_lines_at_step_k, stereo_sc, label_display=False)
+
     pos_at_step_k = [positions[obj][0] for obj in object_list]
 
     # plot planets and spacecraft in object_list
@@ -501,7 +609,9 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
 
         # get position at current step
         pos_at_step_k = [positions[obj][k] for obj in object_list]
-
+        # Plot time at step k outside of plot in top middle
+        current_time = mdates.num2date(time_array[k]).strftime('%Y-%m-%d %H:%M:%S')
+        plt.title(current_time, fontsize=fontsize+2, color=gridcolor)
         # plot planets and spacecraft in object_list
         update_spacecraft_artists(spacecraft_artists, pos_at_step_k)
 
@@ -515,6 +625,9 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
                 idx = frame_to_cme_idx[k, cme_index]
                 update_cmes(cme_artists[cme_index], idx, (longcirc[cme_index], rcirc[cme_index], alpha[cme_index]))
 
+        if cme_tracks is not None and ('sta' in object_list or 'stb' in object_list):
+            elongation_lines_at_step_k = calculate_elongation_lines(positions[stereo_sc][k], stereo_sc, track_elongation_interp[k], time_num[k])
+            update_elongation_line(elongation_artists, elongation_lines_at_step_k)
         plt.savefig('plots/ELEvo_'+str(k)+'.png', dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor(), compress_level=1)
 
         end_timer = time.time()
