@@ -37,12 +37,12 @@ def draw_punch_fov(pos, time_num, timeind,ax):
     lcolor='green'
 
     #sta position
-    x0=pos.x[timeind]
-    y0=pos.y[timeind]
+    x0=pos['x'][timeind]
+    y0=pos['y'][timeind]
     z0=0
 
-    x1=-pos.x[timeind]
-    y1=-pos.y[timeind]
+    x1=-pos['x'][timeind]
+    y1=-pos['y'][timeind]
     z1=0
 
     
@@ -77,7 +77,7 @@ def draw_punch_fov(pos, time_num, timeind,ax):
 def calculate_stereo_fov_lines(pos, sc):
     #plots the STA FOV HI1 HI2
     
-    time_num = pos.time
+    time_num = mdates.date2num(pos['time'])
     #STB never flipped the camera:
     sc = sc.lower()
 
@@ -105,13 +105,13 @@ def calculate_stereo_fov_lines(pos, sc):
     #calculate endpoints
     
     #sta position
-    x0=pos.x
-    y0=pos.y
+    x0=pos['x']
+    y0=pos['y']
     z0=0
     
     #sta position 180° rotated    
-    x1=-pos.x
-    y1=-pos.y
+    x1=-pos['x']
+    y1=-pos['y']
     z1=0
     
     r2,t2,lon2=angle_to_coord_line(ang1d,x0,y0,x1,y1)
@@ -158,13 +158,13 @@ def calculate_elongation_lines(pos, sc, track_elongation, track_time):
     #calculate endpoints
     
     #sta position
-    x0=pos.x
-    y0=pos.y
+    x0=pos['x']
+    y0=pos['y']
     z0=0
     
     #sta position 180° rotated    
-    x1=-pos.x
-    y1=-pos.y
+    x1=-pos['x']
+    y1=-pos['y']
     z1=0
     
     r_elon = np.nan
@@ -320,9 +320,9 @@ def plot_spacecraft_planets(ax, pos_data, obj_list):
         elif obj_type == 'spacecraft':
             marker_type = marker_spacecraft
             marker_size = symsize_spacecraft
-            label = obj_name.upper() + ":  " + mdates.num2date(pos.time[0]).strftime('%Y-%m-%d')
+            label = obj_name.upper() + ":  " + pos['time'].strftime('%Y-%m-%d')
 
-        scatter = ax.scatter(pos.lon, pos.r*np.cos(pos.lat), s=marker_size, c=marker_color, marker=marker_type, lw=0, zorder=zorder, label=label)
+        scatter = ax.scatter(pos['lon'], pos['r']*np.cos(pos['lat']), s=marker_size, c=marker_color, marker=marker_type, lw=0, zorder=zorder, label=label)
         scatter_artists.append(scatter)
     
     return scatter_artists
@@ -391,7 +391,7 @@ def compute_cme_ellipses_slow(hc_time_num1, hc_lon1, hc_lat1, a1_ell, b1_ell, c1
 
 def update_spacecraft_artists(artists, pos_data):
     for scatter, pos in zip(artists, pos_data):
-        scatter.set_offsets([[pos.lon, pos.r * np.cos(pos.lat)]])
+        scatter.set_offsets([[pos['lon'], pos['r'] * np.cos(pos['lat'])]])
 
 def update_stereo_hi_fov(artists, fov_data):
 
@@ -450,8 +450,8 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
     fontsize = 13
 
     threshold_cme_in_frame = 60.0 # in seconds
-    time_array = positions[object_list[0]]['time']
-    time_array = np.array([item for items in time_array for item in items])
+    time_array = np.array(mdates.date2num(positions[object_list[0]]['time']))
+    #time_array = np.array([item for items in time_array for item in items])
 
     for obj in object_list:
         if obj not in positions.keys():
@@ -559,7 +559,7 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
 
     if plot_stereo_fov and ('sta' in object_list or 'stb' in object_list):
         stereo_sc = 'sta' if 'sta' in object_list else 'stb'
-        fov_lines_at_step_k = calculate_stereo_fov_lines(positions[stereo_sc][0], stereo_sc)
+        fov_lines_at_step_k = calculate_stereo_fov_lines(dict(zip(list(positions[stereo_sc].keys()),np.array(list(positions[stereo_sc].values()))[:,0])), stereo_sc)
         fov_artists = plot_stereo_hi_fov(ax, fov_lines_at_step_k, stereo_sc, label_display=False)
 
     # TODO: implement CME tracks plotting
@@ -579,18 +579,17 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
         track_times = cme_tracks['time']
         track_elongations = cme_tracks['elongation']
 
-        time_num = [positions[stereo_sc][i].time for i in range(len(positions[stereo_sc]))]
+        time_num = [positions[stereo_sc]['time'][i] for i in range(len(positions[stereo_sc]['time']))]
 
         # interpolate tracks to time_num grid
         track_time_mdates = mdates.date2num(track_times)
 
         track_elongation_interp = np.interp(time_num, track_time_mdates, track_elongations, left=np.nan, right=np.nan)
 
-        elongation_lines_at_step_k = calculate_elongation_lines(positions[stereo_sc][0], stereo_sc, track_elongation_interp[0], track_time_mdates[0])
+        elongation_lines_at_step_k = calculate_elongation_lines(dict(zip(list(positions[stereo_sc].keys()),np.array(list(positions[stereo_sc].values()))[:,0])), stereo_sc, track_elongation_interp[0], track_time_mdates[0])
         elongation_artists = plot_elongation_line(ax, elongation_lines_at_step_k, stereo_sc, label_display=False)
 
-    pos_at_step_k = [positions[obj][0] for obj in object_list]
-
+    pos_at_step_k = [dict(zip(list(positions[obj].keys()),np.array(list(positions[obj].values()))[:,0])) for obj in object_list]
     # plot planets and spacecraft in object_list
     spacecraft_artists = plot_spacecraft_planets(ax, pos_at_step_k, object_list)
 
@@ -608,7 +607,7 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
         #plot all positions including text R lon lat for some 
 
         # get position at current step
-        pos_at_step_k = [positions[obj][k] for obj in object_list]
+        pos_at_step_k = [dict(zip(list(positions[obj].keys()),np.array(list(positions[obj].values()))[:,k])) for obj in object_list]
         # Plot time at step k outside of plot in top middle
         current_time = mdates.num2date(time_array[k]).strftime('%Y-%m-%d %H:%M:%S')
         plt.title(current_time, fontsize=fontsize+2, color=gridcolor)
@@ -617,7 +616,7 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
 
         # plot stereoa fov hi1/2 and cor
         if plot_stereo_fov and ('sta' in object_list or 'stb' in object_list):
-            fov_lines_at_step_k = calculate_stereo_fov_lines(positions[stereo_sc][k], stereo_sc)
+            fov_lines_at_step_k = calculate_stereo_fov_lines(dict(zip(list(positions[stereo_sc].keys()),np.array(list(positions[stereo_sc].values()))[:,k])), stereo_sc)
             update_stereo_hi_fov(fov_artists, fov_lines_at_step_k)
 
         if cmes is not None:
@@ -626,7 +625,7 @@ def make_frame_trajectories(positions,object_list,start_end=True,cmes=None,plot_
                 update_cmes(cme_artists[cme_index], idx, (longcirc[cme_index], rcirc[cme_index], alpha[cme_index]))
 
         if cme_tracks is not None and ('sta' in object_list or 'stb' in object_list):
-            elongation_lines_at_step_k = calculate_elongation_lines(positions[stereo_sc][k], stereo_sc, track_elongation_interp[k], time_num[k])
+            elongation_lines_at_step_k = calculate_elongation_lines(dict(zip(list(positions[stereo_sc].keys()),np.array(list(positions[stereo_sc].values()))[:,k])), stereo_sc, track_elongation_interp[k], time_num[k])
             update_elongation_line(elongation_artists, elongation_lines_at_step_k)
         plt.savefig('plots/ELEvo_'+str(k)+'.png', dpi=200, bbox_inches='tight', facecolor=fig.get_facecolor(), compress_level=1)
 

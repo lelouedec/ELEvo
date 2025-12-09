@@ -37,6 +37,40 @@ def cart2sphere(x,y,z):
     phi = np.arctan2(y,x)                    
     return r, theta, phi
 
+
+def sphere2cart(r,theta,phi):
+    """
+    Converts spherical coordinates (r, theta, phi) to cartesian coordinates (x, y, z).
+
+    Parameters
+    ----------
+    r : float or array-like
+        The radial distance from the origin.
+    theta : float or array-like
+        The polar angle (inclination) in radians, measured from the z-axis.
+    phi : float or array-like
+        The azimuthal angle in radians, measured from the x-axis in the x-y plane.
+
+    Returns
+    -------
+    x : float or array-like
+        The x-coordinate(s) in Cartesian space.
+    y : float or array-like
+        The y-coordinate(s) in Cartesian space.
+    z : float or array-like
+        The z-coordinate(s) in Cartesian space.
+
+    Notes
+    -----
+    - The input angles must be given in radians.
+    """
+
+    x = r*np.cos(theta)*np.cos(phi)
+    y = r*np.cos(theta)*np.sin(phi)
+    z = r*np.sin(theta)
+                  
+    return x, y, z
+
 @njit(fastmath=True, parallel=True)
 def compute_cme_ensemble(gamma, ambient_wind, speed_ensemble, timesteps, distance0):
     """
@@ -190,19 +224,21 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     kindays_in_min = int(kindays*24*60/res_in_min)
 
     earth = positions["l1"]
-    #sta = positions["sta"]
-
-    
+    earth_time = mdates.date2num(earth["time"])
+    earth_lon = earth["lon"]
+    #earth_lat = earth["lat"]
+    earth_r = earth["r"]
 
     ### Just doing earth for now, if needed create generic function and call it with spacecraft pos array
 
-    dct = mdates.date2num(time21_5) - earth.time
+    dct = mdates.date2num(time21_5) - earth_time
     earth_ind = np.argmin(np.abs(dct))
 
-    if np.abs(np.deg2rad(longitude)) + np.abs(earth.lon[earth_ind][0]) > np.pi and np.sign(np.deg2rad(longitude)) != np.sign(earth.lon[earth_ind][0]):
-        delta_earth = np.deg2rad(longitude) - (earth.lon[earth_ind][0] + 2 * np.pi * np.sign(np.deg2rad(longitude)))
+    if np.abs(np.deg2rad(longitude)) + np.abs(earth_lon[earth_ind]) > np.pi and np.sign(np.deg2rad(longitude)) != np.sign(earth_lon[earth_ind]):
+        delta_earth = np.deg2rad(longitude) - (earth_lon[earth_ind] + 2 * np.pi * np.sign(np.deg2rad(longitude)))
     else:
-        delta_earth = np.deg2rad(longitude) - earth.lon[earth_ind][0]
+        delta_earth = np.deg2rad(longitude) - earth_lon[earth_ind]
+        
     #times for each event kinematic
     time1=[]
     tstart1=time21_5
@@ -301,7 +337,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     time2_num=parse_time(time2).plot_date        
     time1_num=parse_time(time1).plot_date
     
-    results_earth = process_arrival(distance_earth, earth.r[earth_ind][0], time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label="earth")
+    results_earth = process_arrival(distance_earth, earth_r[earth_ind], time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label="earth")
 
     #linear interpolation to time_mat times    
     cme_r = [np.interp(time2_num, time1_num,cme_r[:,i]) for i in range(3)]
