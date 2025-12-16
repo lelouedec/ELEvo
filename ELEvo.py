@@ -12,18 +12,55 @@ import os
 import warnings
 warnings.filterwarnings('ignore')
 
-import data_utils
-import Utils 
-import plotting_utils
+import utils.data_utils as data_utils
+import utils.pred_utils as pred_utils 
+import utils.plotting_utils as plotting_utils
+import copy
+import sys
 
 def fun_wrapper(dict_args):
-    return Utils.Prediction_ELEvo(**dict_args)
+    return pred_utils.Prediction_ELEvo(**dict_args)
 
-def main(path_to_donki, path_to_positions, strudl_path=None):
+def save_test_output(dat, res):
+
+    nam = dat['associatedCMEID'].replace(':','_').replace('-','_')
+    save_test_dict = copy.deepcopy(dat)
+
+    (time2_num, cme_r, cme_lat,
+     cme_lon, cme_a, cme_b,
+     cme_c, cme_id, cme_v,
+     halfwidth, arr_time_fin, arr_time_err0,
+     arr_time_err1, arr_id, arr_hit,
+     arr_speed_list, arr_speed_err_list) = res
+
+    save_results_dict = {}
+    save_results_dict["hc_time_num1"]= time2_num
+    save_results_dict["hc_r1" ]= cme_r
+    save_results_dict["hc_lat1" ]= cme_lat
+    save_results_dict["hc_lon1" ]= cme_lon
+    save_results_dict["a1_ell" ]= cme_a
+    save_results_dict["b1_ell" ]= cme_b
+    save_results_dict["c1_ell" ]= cme_c
+    save_results_dict["hc_id1" ]= cme_id
+    save_results_dict["hc_v1" ]= cme_v
+    save_results_dict["halfwidth" ]= halfwidth
+    save_results_dict["hc_arr_time1"] = arr_time_fin
+    save_results_dict["hc_err_arr_time_min1"] = arr_time_err0
+    save_results_dict["hc_err_arr_time_max1"] = arr_time_err1
+    save_results_dict["hc_arr_id1"] = arr_id
+    save_results_dict["hc_arr_hit1"] = arr_hit
+    save_results_dict["hc_arr_speed1"] = arr_speed_list
+    save_results_dict["hc_err_arr_speed1"] = arr_speed_err_list
+
+    np.save('data/test_elevo_input_'+nam+'.npy',save_test_dict)
+
+    np.save('data/test_elevo_output_'+nam+'.npy',save_results_dict)
+
+
+def main(path_to_donki, path_to_positions, dates, strudl_path=None):
     # TODO: Make strudl_path keyword work properly - is supposed to allow plotting STRUDL tracks along with ELEvo results
 
     object_list = list(path_to_positions.keys())
-    dates = [datetime(2024,5,1),datetime(2024,5,2)]
     data = data_utils.load_donki(path_to_donki,dates)
 
     positions = {}
@@ -53,8 +90,13 @@ def main(path_to_donki, path_to_positions, strudl_path=None):
     results = []
     for d in data:
         d["positions"]=positions
+        # d["seed_value"]=42  # for reproducibility in tests
+        # dat = copy.deepcopy(d) # for saving input/output
+
         results.append(fun_wrapper(d))
-    
+
+        # save_test_output(dat, results[-1])  # Uncomment to save test input/output for each CME
+        # sys.exit()  # Uncomment to stop after first CME for testing purposes
 
     cmes = {}
 
@@ -84,7 +126,7 @@ def main(path_to_donki, path_to_positions, strudl_path=None):
     cmes["hc_err_arr_speed1"] = np.array(results, dtype=object)[:,16]
 
     np.save('data/cmes_elevo_'+datetime.strftime(dates[0], '%Y%m%d')+'_'+datetime.strftime(dates[1], '%Y%m%d')+'.npy',cmes)
-    plotting_utils.make_frame_trajectories(positions,object_list,start_end=False,cmes=cmes,cme_tracks=(strudl_track if strudl_path is not None else None))
+    #plotting_utils.make_frame_trajectories(positions,object_list,start_end=False,cmes=cmes,cme_tracks=(strudl_track if strudl_path is not None else None))
 
     print('Done in: ',np.round((time.time()-start_time)), 'seconds')
 
@@ -95,31 +137,32 @@ def plot_trajectories_only(path_to_positions):
 
 if __name__ == '__main__':
 
+    dates = [datetime(2025,5,12),datetime(2025,5,13)]
     path_to_donki = 'data/'
     strudl_path = None#'data/tracks_with_parameters_mean_45_2024_05_01_2025_04_30_earth_pa_6h_cleaned.npy'
 
     # for downloading positions, specify folder to save the file in
     # for using existing files, specify full path to the file
 
-    # path_to_positions = {'l1': 'data/positions_l1_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'solo': 'data/positions_solo_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'psp': 'data/positions_psp_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'sta': 'data/positions_sta_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'bepi': 'data/positions_bepi_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'mercury': 'data/positions_mercury_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'venus': 'data/positions_venus_from_2010_to_2030_HEEQ_10m_rad_mb.p',
-    #                      'mars': 'data/positions_mars_from_2010_to_2030_HEEQ_10m_rad_mb.p'}
+    path_to_positions = {'l1': 'data/positions_l1_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'solo': 'data/positions_solo_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'psp': 'data/positions_psp_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'sta': 'data/positions_sta_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'bepi': 'data/positions_bepi_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'mercury': 'data/positions_mercury_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'venus': 'data/positions_venus_from_2010_to_2030_HEEQ_10m_rad_mb.p',
+                         'mars': 'data/positions_mars_from_2010_to_2030_HEEQ_10m_rad_mb.p'}
 
-    path_to_positions = {'l1': 'data/',
-                         'solo': 'data/',
-                         'psp': 'data/',
-                         'sta': 'data/',
-                         'bepi': 'data/',
-                         'mercury': 'data/',
-                         'venus': 'data/',
-                         'mars': 'data/'}
+    # path_to_positions = {'l1': 'data/',
+    #                      'solo': 'data/',
+    #                      'psp': 'data/',
+    #                      'sta': 'data/',
+    #                      'bepi': 'data/',
+    #                      'mercury': 'data/',
+    #                      'venus': 'data/',
+    #                      'mars': 'data/'}
     
-    main(path_to_donki, path_to_positions, strudl_path)
+    main(path_to_donki, path_to_positions, dates, strudl_path)
     # plot_trajectories_only()
 
 

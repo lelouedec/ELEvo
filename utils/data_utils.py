@@ -9,7 +9,7 @@ import numpy as np
 from sunpy.coordinates import frames, get_horizons_coord
 import os
 import re
-from Utils import sphere2cart
+from utils.pred_utils import sphere2cart
 
 def parse_space_obj_names(name):
 

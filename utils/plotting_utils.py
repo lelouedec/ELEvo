@@ -2,7 +2,7 @@
 import numpy as np 
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
-import Utils
+import utils.pred_utils as pred_utils
 import matplotlib.pyplot as plt 
 from sunpy.time import parse_time
 import matplotlib as mpl
@@ -30,7 +30,7 @@ def angle_to_coord_line(angle,x0,y0,x1,y1):
     x2f=x0+x2
     y2f=y0+y2    
     
-    return Utils.cart2sphere(x2f,y2f,0.0)    
+    return pred_utils.cart2sphere(x2f,y2f,0.0)    
 
 def draw_punch_fov(pos, time_num, timeind,ax):
     
@@ -62,7 +62,7 @@ def draw_punch_fov(pos, time_num, timeind,ax):
 
 
 
-    r0,t0,lon0 =Utils.cart2sphere(x0,y0,z0)   
+    r0,t0,lon0 =pred_utils.cart2sphere(x0,y0,z0)   
     ax.plot([lon0,lon2],[r0,r2],linestyle='-',color=lcolor,alpha=0.5, lw=1.2)
     ax.plot([lon0,lon3],[r0,r3],linestyle='-',color=lcolor,alpha=0.5, lw=1.2)
     ax.plot([lon0,lon6],[r0,r6],linestyle='-',color=lcolor,alpha=0.5, lw=1.2)
@@ -121,7 +121,7 @@ def calculate_stereo_fov_lines(pos, sc):
     r5,t5,lon5=angle_to_coord_line(ang4d,x0,y0,x1,y1)
     
     #convert to polar coordinates and plot
-    [r0,t0,lon0]=Utils.cart2sphere(x0,y0,z0)    
+    [r0,t0,lon0]=pred_utils.cart2sphere(x0,y0,z0)    
     #[r1,t1,lon1]=hd.cart2sphere(x1,y1,z1)    
 
 
@@ -173,7 +173,7 @@ def calculate_elongation_lines(pos, sc, track_elongation, track_time):
 
     
     #convert to polar coordinates and plot
-    [r0,t0,lon0]=Utils.cart2sphere(x0,y0,z0)    
+    [r0,t0,lon0]=pred_utils.cart2sphere(x0,y0,z0)    
     #[r1,t1,lon1]=hd.cart2sphere(x1,y1,z1)    
 
     if not np.isnan(track_elongation_calc):

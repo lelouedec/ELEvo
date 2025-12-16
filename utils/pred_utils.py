@@ -2,7 +2,6 @@ import numpy as np
 import matplotlib.dates as mdates
 from datetime import datetime, timedelta
 import astropy.units as u
-import data_utils
 from sunpy.time import parse_time
 from numba import njit, prange
 
@@ -209,9 +208,12 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, c
             f"arr_speed_err_list": arr_speed_err_list,
         }
 
-def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMostAccurate, associatedCMEID, associatedCMEstartTime, note, associatedCMELink, catalog, featureCode, dataLevel, measurementTechnique, imageType, tilt, minorHalfWidth, speedMeasuredAtHeight, submissionTime, versionId, link,positions):
+def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMostAccurate, associatedCMEID, associatedCMEstartTime, note, associatedCMELink, catalog, featureCode, dataLevel, measurementTechnique, imageType, tilt, minorHalfWidth, speedMeasuredAtHeight, submissionTime, versionId, link,positions,seed_value=None):
     print(associatedCMEID)
 
+    if seed_value is None:
+        seed_value = datetime.now().year + datetime.now().month + datetime.now().day + datetime.now().hour + datetime.now().minute + datetime.now().second
+        
     distance0 = 21.5*u.solRad.to(u.km)
     t0 = time21_5
     gamma_init = 0.1
@@ -228,6 +230,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     earth_lon = earth["lon"]
     #earth_lat = earth["lat"]
     earth_r = earth["r"]
+
 
     ### Just doing earth for now, if needed create generic function and call it with spacecraft pos array
 
@@ -277,10 +280,12 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
 
         
     kindays_in_min = int(kindays*24*60/res_in_min)
-    
-    gamma = np.abs(np.random.normal(gamma_init,0.025,n_ensemble))
-    ambient_wind = np.random.normal(ambient_wind_init,50,n_ensemble)
-    speed_ensemble = np.random.normal(speed,50,n_ensemble)
+    rng = np.random.default_rng(seed_value)
+
+    # TODO: Make into separate function that can be called by ELEvoHI
+    gamma = np.abs(rng.normal(gamma_init,0.025,n_ensemble))
+    ambient_wind = rng.normal(ambient_wind_init,50,n_ensemble)
+    speed_ensemble = rng.normal(speed,50,n_ensemble)
     
     timesteps = np.arange(kindays_in_min)*res_in_min*60
     timesteps = np.vstack([timesteps]*n_ensemble)
