@@ -208,6 +208,50 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, c
             f"arr_speed_err_list": arr_speed_err_list,
         }
 
+def elevo_analytic(R, f, halfwidth, delta, return_plotting=False):
+    """
+    Calculate the distance from the Sun to a point along an ellipse in the ecliptic plane, which 
+    describes the front of a solar transient. This point is specified by the angle delta 
+    between the ellipse apex and the in situ spacecraft. The ellipse is specified by 
+    the distance of the apex (R), the half width in degrees in heliospheric longitude, and the aspect ratio.
+    One of the ellipse main axes is oriented along the propagation direction, the 
+    other perpendicular to it. The aspect ratio can take any values, but physical 
+    ones suitable for CMEs cluster most likely around 1.3 +/ 0.2.
+
+    Authors: Christian Möstl, Tanja Amerstorfer, Jürgen Hinterreiter, Maike Bauer
+    
+    Parameters: 
+        R (numpy.ndarray): Heliocentric distance of CME apex in AU
+        f (float): Ellipse aspect ratio (a/b)
+        halfwidth (float): Halfwidth of the ellipse
+        delta (float): Angular separation of CME apex and in situ s/c
+
+    Returns:
+        numpy.ndarray: Heliocentric distance of the CME front along the Sun-s/c line.
+
+    History:
+        2014/09: Version 1.0 numerical solution (C. Möstl)
+        2014/10: Replaced numerical with analytic procedure (C. Möstl)
+        2015/11 - 2019/08: several changes related to ELEvoHI (T. Amerstorfer, J. Hinterreiter)
+        2023/08: translated from IDL to Python (T. Amerstorfer)
+
+    """
+
+    theta = np.arctan(f**2 * np.tan(halfwidth))
+    omega = np.sqrt(np.cos(theta)**2 * (f**2 - 1) + 1)   
+
+    cme_b = R * omega * np.sin(halfwidth) / (np.cos(halfwidth - theta) + omega * np.sin(halfwidth))    
+    cme_a = cme_b / f
+    cme_c = R - cme_b
+        
+    root = np.sin(delta)**2 * f**2 * (cme_b**2 - cme_c**2) + np.cos(delta)**2 * cme_b**2
+    distance_earth = (cme_c * np.cos(delta) + np.sqrt(root)) / (np.sin(delta)**2 * f**2 + np.cos(delta)**2) #distance from SUN in AU for given point on ellipse
+
+    if return_plotting:
+        return distance_earth, cme_a, cme_b, cme_c
+    else:
+        return distance_earth
+
 def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMostAccurate, associatedCMEID, associatedCMEstartTime, note, associatedCMELink, catalog, featureCode, dataLevel, measurementTechnique, imageType, tilt, minorHalfWidth, speedMeasuredAtHeight, submissionTime, versionId, link,positions,seed_value=None):
     print(associatedCMEID)
 
@@ -282,7 +326,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     kindays_in_min = int(kindays*24*60/res_in_min)
     rng = np.random.default_rng(seed_value)
 
-    # TODO: Make into separate function that can be called by ELEvoHI
+    
     gamma = np.abs(rng.normal(gamma_init,0.025,n_ensemble))
     ambient_wind = rng.normal(ambient_wind_init,50,n_ensemble)
     speed_ensemble = rng.normal(speed,50,n_ensemble)
@@ -308,25 +352,15 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     cme_r_std = cme_r_ensemble.std(1)
     cme_v_mean = cme_v_ensemble.mean(1)
     cme_v_std = cme_v_ensemble.std(1)
-    cme_r[:,0]= cme_r_mean*u.km.to(u.au)
-    cme_r[:,1]=(cme_r_mean - 2*cme_r_std)*u.km.to(u.au) 
-    cme_r[:,2]=(cme_r_mean + 2*cme_r_std)*u.km.to(u.au)
+    cme_r[:,0]= cme_r_mean*u.km.to(u.au) # mean of cme distance ensemble
+    cme_r[:,1]=(cme_r_mean - 2*cme_r_std)*u.km.to(u.au)  # lower limit of cme distance ensemble
+    cme_r[:,2]=(cme_r_mean + 2*cme_r_std)*u.km.to(u.au) # upper limit of cme distance ensemble
     cme_v[:,0]= cme_v_mean
     cme_v[:,1]=(cme_v_mean - 2*cme_v_std)
     cme_v[:,2]=(cme_v_mean + 2*cme_v_std)
     
-    #Ellipse parameters   
-    theta = np.arctan(f**2*np.ones([kindays_in_min,3]) * np.tan(halfwidth*np.ones([kindays_in_min,3])))
-    omega = np.sqrt(np.cos(theta)**2 * (f**2*np.ones([kindays_in_min,3]) - 1) + 1)   
-    cme_b = cme_r * omega * np.sin(halfwidth*np.ones([kindays_in_min,3])) / (np.cos(halfwidth*np.ones([kindays_in_min,3]) - theta) + omega * np.sin(halfwidth*np.ones([kindays_in_min,3])))    
-    cme_a = cme_b / f*np.ones([kindays_in_min,3])
-    cme_c = cme_r - cme_b
-        
-    root = np.sin(cme_delta)**2 * f**2*np.ones([kindays_in_min,3]) * (cme_b**2 - cme_c**2) + np.cos(cme_delta)**2 * cme_b**2
-    distance_earth[cme_hit.all() == 1] = (cme_c * np.cos(cme_delta) + np.sqrt(root)) / (np.sin(cme_delta)**2 * f**2*np.ones([kindays_in_min,3]) + np.cos(cme_delta)**2) #distance from SUN in AU for given point on ellipse
-    
-
-    #### linear interpolate to 10 min resolution
+    distance_earth, cme_a, cme_b, cme_c = elevo_analytic(cme_r, f, halfwidth, cme_delta, return_plotting=True)
+    distance_earth[cme_hit.all() != 1] = np.nan
 
     #find next full hour after t0
     format_str = '%Y-%m-%d %H'  
