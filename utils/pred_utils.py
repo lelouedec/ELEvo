@@ -70,7 +70,7 @@ def sphere2cart(r,theta,phi):
                   
     return x, y, z
 
-@njit(fastmath=True, parallel=True)
+@njit(fastmath=False, parallel=True)
 def compute_cme_ensemble(gamma, ambient_wind, speed_ensemble, timesteps, distance0):
     """
     Compute CME ensemble propagation (r and v) with Numba acceleration.
@@ -91,28 +91,29 @@ def compute_cme_ensemble(gamma, ambient_wind, speed_ensemble, timesteps, distanc
 
     n_steps = timesteps.size
     n_ens = gamma.size
-    cme_r_ensemble = np.empty((n_steps, n_ens), dtype=np.float32)
-    cme_v_ensemble = np.empty((n_steps, n_ens), dtype=np.float32)
+    cme_r_ensemble = np.empty((n_steps, n_ens))
+    cme_v_ensemble = np.empty((n_steps, n_ens))
 
+    gfac = gamma * 1e-7
     for j in prange(n_ens):
-        g = gamma[j]
         v_amb = ambient_wind[j]
         v0 = speed_ensemble[j]
-        accsign = 1.0
+        accsign = 1.
         if v0 < v_amb:
-            accsign = -1.0
+            accsign = -1.
 
-        gfac = g * 1e-7
         for i in range(n_steps):
             t = timesteps[i]
-            term = accsign * gfac * (v0 - v_amb) * t
+            term = accsign * gfac[j] * (v0 - v_amb) * t
             cme_r_ensemble[i, j] = (
-                (accsign / gfac) * np.log(1.0 + term)
+                (accsign / gfac[j]) * np.log(1 + term)
                 + v_amb * t
                 + distance0
             )
+
+            # term2 = accsign * gfac[j] * (v0 - v_amb) * t
             cme_v_ensemble[i, j] = (
-                (v0 - v_amb) / (1.0 + term) + v_amb
+                (v0 - v_amb) / (1 + term) + v_amb
             )
 
     return cme_r_ensemble, cme_v_ensemble
@@ -338,14 +339,14 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     accsign = np.ones(n_ensemble)
     accsign[speed_ensemble < ambient_wind] = -1.
 
-    distance0_list = np.ones(n_ensemble)*distance0
+    # distance0_list = np.ones(n_ensemble)*distance0
 
     cme_r_ensemble, cme_v_ensemble = compute_cme_ensemble(
-        gamma.astype(np.float32),
-        ambient_wind.astype(np.float32),
-        speed_ensemble.astype(np.float32),
-        (np.arange(kindays_in_min, dtype=np.float32) * res_in_min * 60.0),
-        np.float32(distance0)
+        gamma,
+        ambient_wind,
+        speed_ensemble,
+        (np.arange(kindays_in_min) * res_in_min * 60),
+        distance0
     )
 
     cme_r_mean = cme_r_ensemble.mean(1)
@@ -381,8 +382,8 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     #linear interpolation to time_mat times    
     cme_r = [np.interp(time2_num, time1_num,cme_r[:,i]) for i in range(3)]
     cme_v = [np.interp(time2_num, time1_num,cme_v[:,i]) for i in range(3)]
-    cme_lat = np.interp(time2_num, time1_num,cme_lat )
-    cme_lon = np.interp(time2_num, time1_num,cme_lon )
+    cme_lat = np.interp(time2_num, time1_num,cme_lat)
+    cme_lon = np.interp(time2_num, time1_num,cme_lon)
     cme_a = [np.interp(time2_num, time1_num,cme_a[:,i]) for i in range(3)]
     cme_b = [np.interp(time2_num, time1_num,cme_b[:,i]) for i in range(3)]
     cme_c = [np.interp(time2_num, time1_num,cme_c[:,i]) for i in range(3)]
