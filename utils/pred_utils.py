@@ -144,6 +144,8 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, c
                 - "arr_speed_list": List of arrival speeds.
                 - "arr_speed_err_list": List of arrival speed uncertainties.
         """
+        # TODO: remove arrival variable (is not used later)
+
         arr_time = []
         arrival = []
         arr_time_fin = []
@@ -197,9 +199,10 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, c
             arr_speed_list.append(np.nan)
             arr_speed_err_list.append(np.nan)
 
+        # TODO: consider returning numpy arrays instead of lists for easier further processing
+        # TODO: consider using more descriptive variable names for clarity
 
         return {
-            f"arrival": arrival,
             f"arr_time_fin": arr_time_fin,
             f"arr_time_err0": arr_time_err0,
             f"arr_time_err1": arr_time_err1,
@@ -209,7 +212,7 @@ def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, c
             f"arr_speed_err_list": arr_speed_err_list,
         }
 
-def elevo_analytic(R, f, halfwidth, delta, return_plotting=False):
+def elevo_analytic(R, f, halfwidth, delta):
     """
     Calculate the distance from the Sun to a point along an ellipse in the ecliptic plane, which 
     describes the front of a solar transient. This point is specified by the angle delta 
@@ -218,8 +221,6 @@ def elevo_analytic(R, f, halfwidth, delta, return_plotting=False):
     One of the ellipse main axes is oriented along the propagation direction, the 
     other perpendicular to it. The aspect ratio can take any values, but physical 
     ones suitable for CMEs cluster most likely around 1.3 +/ 0.2.
-
-    Authors: Christian Möstl, Tanja Amerstorfer, Jürgen Hinterreiter, Maike Bauer
     
     Parameters: 
         R (numpy.ndarray): Heliocentric distance of CME apex in AU
@@ -228,14 +229,10 @@ def elevo_analytic(R, f, halfwidth, delta, return_plotting=False):
         delta (float): Angular separation of CME apex and in situ s/c
 
     Returns:
-        numpy.ndarray: Heliocentric distance of the CME front along the Sun-s/c line.
-
-    History:
-        2014/09: Version 1.0 numerical solution (C. Möstl)
-        2014/10: Replaced numerical with analytic procedure (C. Möstl)
-        2015/11 - 2019/08: several changes related to ELEvoHI (T. Amerstorfer, J. Hinterreiter)
-        2023/08: translated from IDL to Python (T. Amerstorfer)
-
+        distance_earth (numpy.ndarray): Distance from Sun to point along ellipse at angle delta in AU
+        cme_a (numpy.ndarray): Semi-major axis of the ellipse in AU
+        cme_b (numpy.ndarray): Semi-minor axis of the ellipse in AU
+        cme_c (numpy.ndarray): Distance from Sun to center of ellipse in AU
     """
 
     theta = np.arctan(f**2 * np.tan(halfwidth))
@@ -248,10 +245,12 @@ def elevo_analytic(R, f, halfwidth, delta, return_plotting=False):
     root = np.sin(delta)**2 * f**2 * (cme_b**2 - cme_c**2) + np.cos(delta)**2 * cme_b**2
     distance_earth = (cme_c * np.cos(delta) + np.sqrt(root)) / (np.sin(delta)**2 * f**2 + np.cos(delta)**2) #distance from SUN in AU for given point on ellipse
 
-    if return_plotting:
-        return distance_earth, cme_a, cme_b, cme_c
-    else:
-        return distance_earth
+    return distance_earth, cme_a, cme_b, cme_c
+
+def does_cme_hit(delta,halfwidth, tol=0.0):
+    tol_rad = np.deg2rad(tol)
+
+    return np.abs(delta) < (halfwidth + tol_rad)
 
 def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMostAccurate, associatedCMEID, associatedCMEstartTime, note, associatedCMELink, catalog, featureCode, dataLevel, measurementTechnique, imageType, tilt, minorHalfWidth, speedMeasuredAtHeight, submissionTime, versionId, link,positions,seed_value=None):
     print(associatedCMEID)
@@ -312,17 +311,14 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
 
     cme_delta=delta_earth*np.ones([kindays_in_min,3])
 
-    cme_hit=np.zeros(kindays_in_min)
-    cme_hit[np.abs(delta_earth)<halfwidth] = 1
-
+    cme_hit = does_cme_hit(cme_delta, halfwidth)
+    
     distance_earth = np.empty([kindays_in_min,3])
     distance_solo = np.empty([kindays_in_min,3])
     distance_sta = np.empty([kindays_in_min,3])
     distance_earth[:] = np.nan
     distance_solo[:] = np.nan
     distance_sta[:] = np.nan
-
-
         
     kindays_in_min = int(kindays*24*60/res_in_min)
     rng = np.random.default_rng(seed_value)
@@ -360,7 +356,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     cme_v[:,1]=(cme_v_mean - 2*cme_v_std)
     cme_v[:,2]=(cme_v_mean + 2*cme_v_std)
     
-    distance_earth, cme_a, cme_b, cme_c = elevo_analytic(cme_r, f, halfwidth, cme_delta, return_plotting=True)
+    distance_earth, cme_a, cme_b, cme_c = elevo_analytic(cme_r, f, halfwidth, cme_delta)
     distance_earth[cme_hit.all() != 1] = np.nan
 
     #find next full hour after t0
