@@ -96,7 +96,7 @@ def main(path_to_donki, path_to_positions, dates, strudl_path=None):
         results.append(fun_wrapper(d))
 
         # save_test_output(dat, results[-1])  # Uncomment to save test input/output for each CME
-        # sys.exit()  # Uncomment to stop after first CME for testing purposes
+        sys.exit()  # Uncomment to stop after first CME for testing purposes
 
     cmes = {}
 
@@ -137,7 +137,7 @@ def plot_trajectories_only(path_to_positions):
 
 if __name__ == '__main__':
 
-    dates = [datetime(2025,5,12),datetime(2025,5,13)]
+    dates = [datetime(2022,5,10),datetime(2022,5,11)]
     path_to_donki = 'data/'
     strudl_path = None#'data/tracks_with_parameters_mean_45_2024_05_01_2025_04_30_earth_pa_6h_cleaned.npy'
 

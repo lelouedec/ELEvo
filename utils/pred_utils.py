@@ -118,99 +118,70 @@ def compute_cme_ensemble(gamma, ambient_wind, speed_ensemble, timesteps, distanc
 
     return cme_r_ensemble, cme_v_ensemble
 
-def process_arrival(distance, obj, time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label):
-        """
-        Processes the arrival time and related parameters for a CME.
-        Args:
-            distance (np.ndarray): Array of distances for each time and scenario.
-            obj (float): Target distance for arrival calculation.
-            time1 (list or np.ndarray): List of datetime objects corresponding to each distance entry.
-            cme_v (np.ndarray): Array containing CME speed and its uncertainties.
-            cme_id (np.ndarray): Array containing CME identifier(s).
-            t0 (datetime): CME launch time.
-            halfAngle (float): Half angular of the CME.
-            speed (float): Mean speed of the CME.
-            cme_lon (np.ndarray): Array containing CME longitude(s).
-            cme_lat (np.ndarray): Array containing CME latitude(s).
-            label (str): Target label (e.g., 'earth') to determine calculation method.
-        Returns:
-            dict: Dictionary containing the following keys:
-                - "arrival": List with CME arrival information and uncertainties.
-                - "arr_time_fin": List of final arrival times.
-                - "arr_time_err0": List of lower bound arrival times.
-                - "arr_time_err1": List of upper bound arrival times.
-                - "arr_id": List of CME identifiers.
-                - "arr_hit": List indicating if arrival was detected (1.0) or not (nan).
-                - "arr_speed_list": List of arrival speeds.
-                - "arr_speed_err_list": List of arrival speed uncertainties.
-        """
-        # TODO: remove arrival variable (is not used later)
+def compute_arrival(cme_r, cme_v, time_array, target_r):
+    """
+    Compute arrival time and speed at a target distance given CME distance and speed profiles.
 
-        arr_time = []
-        arrival = []
-        arr_time_fin = []
-        arr_time_err0 = []
-        arr_time_err1 = []
-        arr_id = []
-        arr_hit = []
-        arr_speed_list = []
-        arr_speed_err_list = []
+    Parameters
+    ----------
+    cme_r : numpy.ndarray
+        Array of CME radial distances (AU). Shape can be (N,) or (N, 3) for mean and uncertainty bounds.
+    cme_v : numpy.ndarray
+        Array of CME speeds (km/s). Shape must match cme_r.
+    time_array : list of datetime
+        List of datetime objects corresponding to the CME distance and speed profiles.
+    target_r : float
+        Target radial distance (AU) for arrival time calculation. 
+    
+    Returns
+    -------
+    dict
+        A dictionary containing:
+        - "arr_time_fin": List of estimated arrival times (datetime).
+        - "arr_time_err0": List of lower bounds of arrival time uncertainty (datetime).
+        - "arr_time_err1": List of upper bounds of arrival time uncertainty (datetime).
+        - "arr_time_err_list": List of arrival time uncertainties in hours (float).
+        - "arr_hit": List indicating if CME hits the target (1.0 for hit).
+        - "arr_speed_list": List of estimated arrival speeds (km/s).
+        - "arr_speed_err_list": List of arrival speed uncertainties (km/s).
+    """
 
-        if not np.isnan(distance).all():
-            if label == 'earth':
-                for t in range(3):
-                    index = np.argmin(np.abs(np.ma.array(distance[:, t], mask=np.isnan(distance[:, t])) - obj))
-                    arr_time.append(time1[int(index)])
 
-            else:
-                for t in range(3):
-                    index = np.argmin(np.abs(distance[:,t] - obj))
-                    arr_time.append(time1[int(index)])
+    # make sure that arrays have same shape when passed to function
+    if cme_r.ndim != cme_v.ndim:
+        raise ValueError("Input arrays must have the same number of dimensions.")
 
-            arr_speed = cme_v[:, 0][index]
-            err_arr_speed = cme_v[:, 2][index] - cme_v[:, 1][index]
-            err_arr_time = (arr_time[1] - arr_time[2]).total_seconds() / 3600.0
-            arrival.append([
-                cme_id[0].decode("utf-8"),
-                t0.strftime('%Y-%m-%dT%H:%MZ'),
-                "{:.1f}".format(cme_lon[0]),
-                "{:.1f}".format(cme_lat[0]),
-                "{:.1f}".format(halfAngle),
-                "{:.1f}".format(speed),
-                arr_time[0].strftime('%Y-%m-%dT%H:%MZ'),
-                "{:.2f}".format(err_arr_time / 2),
-                "{:.2f}".format(arr_speed),
-                "{:.2f}".format(err_arr_speed / 2)
-            ])
-            arr_time_fin.append(arr_time[0])
-            arr_time_err0.append(arr_time[0] - timedelta(hours=err_arr_time))
-            arr_time_err1.append(arr_time[0] + timedelta(hours=err_arr_time))
-            arr_id.append(cme_id[0].decode("utf-8"))
-            arr_hit.append(1.0)
-            arr_speed_list.append(arr_speed)
-            arr_speed_err_list.append(err_arr_speed / 2)
-        
-        else:
-            arr_time_fin.append(np.nan)
-            arr_time_err0.append(np.nan)
-            arr_time_err1.append(np.nan)
-            arr_id.append(np.nan)
-            arr_hit.append(np.nan)
-            arr_speed_list.append(np.nan)
-            arr_speed_err_list.append(np.nan)
+    index_hit = np.nanargmin(np.abs(cme_r - target_r), axis=0)    
+    arr_time = np.array(time_array)[index_hit]
 
-        # TODO: consider returning numpy arrays instead of lists for easier further processing
-        # TODO: consider using more descriptive variable names for clarity
+    if cme_r.ndim == 1:
+        arr_speed_mean = cme_v[index_hit]
+        err_arr_speed = 0.0
+        err_arr_time = 0.0
+    
+    else:
+        arr_speed_mean = [cme_v[:, 0][index_hit[0]]]
+        err_arr_speed = cme_v[:, 2][index_hit[2]] - cme_v[:, 1][index_hit[1]]
+        err_arr_time = (arr_time[1] - arr_time[2]).total_seconds() / 3600.0
 
-        return {
-            f"arr_time_fin": arr_time_fin,
-            f"arr_time_err0": arr_time_err0,
-            f"arr_time_err1": arr_time_err1,
-            f"arr_id": arr_id,
-            f"arr_hit": arr_hit,
-            f"arr_speed_list": arr_speed_list,
-            f"arr_speed_err_list": arr_speed_err_list,
-        }
+    arr_time_mean = [arr_time[0]]
+    arr_time_err_lower = [arr_time_mean[0] - timedelta(hours=err_arr_time)]
+    arr_time_err_upper = [arr_time_mean[0] + timedelta(hours=err_arr_time)]
+    err_arr_time = [err_arr_time/2]
+
+    arr_speed_err_lower = [arr_speed_mean[0] - err_arr_speed]
+    arr_speed_err_upper = [arr_speed_mean[0] + err_arr_speed]
+    err_arr_speed = [err_arr_speed/2]
+
+    return {
+        f"arr_time_fin": arr_time_mean,
+        f"arr_time_err0": arr_time_err_lower,
+        f"arr_time_err1": arr_time_err_upper,
+        f"arr_time_err_list": err_arr_time,
+        f"arr_hit": [1.0],
+        f"arr_speed_list": arr_speed_mean,
+        f"arr_speed_err_list": err_arr_speed,
+    }
 
 def elevo_analytic(R, f, halfwidth, delta):
     """
@@ -312,7 +283,7 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     cme_delta=delta_earth*np.ones([kindays_in_min,3])
 
     cme_hit = does_cme_hit(cme_delta, halfwidth)
-    
+
     distance_earth = np.empty([kindays_in_min,3])
     distance_solo = np.empty([kindays_in_min,3])
     distance_sta = np.empty([kindays_in_min,3])
@@ -373,7 +344,38 @@ def Prediction_ELEvo(time21_5, latitude, longitude, halfAngle, speed, type, isMo
     time2_num=parse_time(time2).plot_date        
     time1_num=parse_time(time1).plot_date
     
-    results_earth = process_arrival(distance_earth, earth_r[earth_ind], time1, cme_v, cme_id, t0, halfAngle, speed, cme_lon, cme_lat, label="earth")
+    if not np.isnan(distance_earth).all():
+        results_earth = compute_arrival(distance_earth, cme_v, time1, earth_r[earth_ind])
+        results_earth['arr_id'] = [cme_id[0].decode("utf-8")]
+
+        arrival_for_txt = []
+
+        arrival_for_txt.append([
+            results_earth['arr_id'][0],
+            t0.strftime('%Y-%m-%dT%H:%MZ'),
+            "{:.1f}".format(cme_lon[0]),
+            "{:.1f}".format(cme_lat[0]),
+            "{:.1f}".format(halfAngle),
+            "{:.1f}".format(speed),
+            results_earth['arr_time_fin'][0].strftime('%Y-%m-%dT%H:%MZ'),
+            "{:.2f}".format(results_earth["arr_time_err_list"][0]),
+            "{:.2f}".format(results_earth["arr_speed_list"][0]),
+            "{:.2f}".format(results_earth["arr_speed_err_list"][0])
+        ])
+
+    else:
+        results_earth = {
+            f"arr_time_fin": [np.nan],
+            f"arr_time_err0": [np.nan],
+            f"arr_time_err1": [np.nan],
+            f"arr_time_err_list": [np.nan],
+            f"arr_id": [np.nan],
+            f"arr_hit": [np.nan],
+            f"arr_speed_list": [np.nan],
+            f"arr_speed_err_list": [np.nan],
+        }
+
+        arrival_for_txt = []
 
     #linear interpolation to time_mat times    
     cme_r = [np.interp(time2_num, time1_num,cme_r[:,i]) for i in range(3)]
