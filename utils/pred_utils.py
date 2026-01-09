@@ -163,16 +163,16 @@ def compute_arrival(cme_r, cme_v, time_array, target_r):
 
     else:
         arr_speed_mean = [cme_v[:, 0][index_hit[0]]]
-        err_arr_speed = cme_v[:, 2][index_hit[2]] - cme_v[:, 1][index_hit[1]]
-        err_arr_time = (arr_time[1] - arr_time[2]).total_seconds() / 3600.0
+        err_arr_speed = (cme_v[:, 2][index_hit[2]] - cme_v[:, 1][index_hit[1]])/2
+        err_arr_time = ((arr_time[1] - arr_time[2]).total_seconds() / 3600.0)/2
 
         arr_time_mean = [arr_time[0]]
 
     arr_time_err_lower = [arr_time_mean[0] - timedelta(hours=err_arr_time)]
     arr_time_err_upper = [arr_time_mean[0] + timedelta(hours=err_arr_time)]
 
-    err_arr_time = [err_arr_time/2]
-    err_arr_speed = [err_arr_speed/2]
+    err_arr_time = [err_arr_time]
+    err_arr_speed = [err_arr_speed]
 
     return {
         f"arr_time_fin": arr_time_mean,

@@ -96,7 +96,7 @@ def main(path_to_donki, path_to_positions, dates, strudl_path=None):
         results.append(fun_wrapper(d))
 
         # save_test_output(dat, results[-1])  # Uncomment to save test input/output for each CME
-        sys.exit()  # Uncomment to stop after first CME for testing purposes
+        # sys.exit()  # Uncomment to stop after first CME for testing purposes
 
     cmes = {}
 
